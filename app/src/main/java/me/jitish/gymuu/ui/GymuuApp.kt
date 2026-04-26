@@ -2,6 +2,7 @@ package me.jitish.gymuu.ui
 
 import android.net.Uri
 import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -466,6 +467,14 @@ private fun SelectExerciseScreen(
 ) {
     var exerciseDialogState by remember { mutableStateOf<ExerciseDialogState?>(null) }
     var visibleBuiltInCount by rememberSaveable(routineId, dayId) { mutableIntStateOf(BUILT_IN_PAGE_SIZE) }
+    val navigateBackToDay = remember(navController, routineId, dayId) {
+        {
+            navController.navigate(Routes.workout(routineId, dayId)) {
+                popUpTo(Routes.WORKOUT) { inclusive = true }
+                launchSingleTop = true
+            }
+        }
+    }
     val targetDay = state.day(routineId, dayId)
     val selectedByExerciseId = remember(targetDay?.id, targetDay?.exercises) {
         targetDay?.exercises
@@ -479,6 +488,8 @@ private fun SelectExerciseScreen(
         exerciseDialogState = null
     }
 
+    BackHandler(onBack = navigateBackToDay)
+
     if (targetDay == null) {
         Scaffold(containerColor = GymBlack) { padding ->
             Column(
@@ -488,7 +499,7 @@ private fun SelectExerciseScreen(
                     .padding(horizontal = 16.dp, vertical = 18.dp),
                 verticalArrangement = Arrangement.spacedBy(18.dp)
             ) {
-                TopTitleBar(title = "SELECT EXERCISE", onBack = { navController.popBackStack() })
+                TopTitleBar(title = "SELECT EXERCISE", onBack = navigateBackToDay)
                 EmptyState("Workout day not found")
             }
         }
@@ -521,7 +532,7 @@ private fun SelectExerciseScreen(
             verticalArrangement = Arrangement.spacedBy(18.dp)
         ) {
             item {
-                TopTitleBar(title = "SELECT EXERCISE", onBack = { navController.popBackStack() })
+                TopTitleBar(title = "SELECT EXERCISE", onBack = navigateBackToDay)
             }
             item {
                 SearchBox(query = state.searchQuery, onQueryChange = viewModel::onSearchChange)
