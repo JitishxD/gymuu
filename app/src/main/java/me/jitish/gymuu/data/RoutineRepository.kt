@@ -1,6 +1,7 @@
 package me.jitish.gymuu.data
 
 import android.content.Context
+import androidx.core.content.edit
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -42,7 +43,7 @@ class RoutineRepository(context: Context) {
     fun addDay(routineId: String): WorkoutDay? {
         var createdDay: WorkoutDay? = null
         updateRoutine(routineId) { routine ->
-            val currentDays = routine.days.orEmpty()
+            val currentDays = routine.days
             val newDay = WorkoutDay(id = newId(), name = nextDayName(currentDays))
             createdDay = newDay
             routine.copy(days = currentDays + newDay)
@@ -58,7 +59,7 @@ class RoutineRepository(context: Context) {
 
     fun removeDay(routineId: String, dayId: String) {
         updateRoutine(routineId) { routine ->
-            val remaining = routine.days.orEmpty().filterNot { it.id == dayId }
+            val remaining = routine.days.filterNot { it.id == dayId }
             val safeDays = if (remaining.isEmpty()) listOf(WorkoutDay(id = newId(), name = "DAY 1")) else remaining
             routine.copy(days = safeDays)
         }
@@ -78,8 +79,8 @@ class RoutineRepository(context: Context) {
     }
 
     fun addCustomExercise(routineId: String, dayId: String, exercise: CustomExercise) {
-        val reps = exercise.reps.orEmpty().ifBlank { "10" }
-        val rest = normalizeRest(exercise.rest.orEmpty())
+        val reps = exercise.reps.ifBlank { "10" }
+        val rest = normalizeRest(exercise.rest)
         val routineExercise = RoutineExercise(
             id = newId(),
             exerciseId = exercise.id,
@@ -94,13 +95,13 @@ class RoutineRepository(context: Context) {
 
     fun removeExercise(routineId: String, dayId: String, routineExerciseId: String) {
         updateDay(routineId, dayId) { day ->
-            day.copy(exercises = day.exercises.orEmpty().filterNot { it.id == routineExerciseId })
+            day.copy(exercises = day.exercises.filterNot { it.id == routineExerciseId })
         }
     }
 
     fun addSet(routineId: String, dayId: String, routineExerciseId: String) {
         updateExercise(routineId, dayId, routineExerciseId) { exercise ->
-            val currentSets = exercise.sets.orEmpty()
+            val currentSets = exercise.sets
             val nextSet = WorkoutSet(
                 id = newId(),
                 setNo = currentSets.size + 1,
@@ -113,7 +114,7 @@ class RoutineRepository(context: Context) {
 
     fun removeSet(routineId: String, dayId: String, routineExerciseId: String, setId: String) {
         updateExercise(routineId, dayId, routineExerciseId) { exercise ->
-            val remaining = exercise.sets.orEmpty().filterNot { it.id == setId }
+            val remaining = exercise.sets.filterNot { it.id == setId }
             exercise.copy(sets = remaining.mapIndexed { index, set -> set.copy(setNo = index + 1) })
         }
     }
@@ -121,7 +122,7 @@ class RoutineRepository(context: Context) {
     fun updateSet(routineId: String, dayId: String, routineExerciseId: String, setId: String, reps: String? = null, weight: String? = null, completed: Boolean? = null) {
         updateExercise(routineId, dayId, routineExerciseId) { exercise ->
             exercise.copy(
-                sets = exercise.sets.orEmpty().map { set ->
+                sets = exercise.sets.map { set ->
                     if (set.id == setId) {
                         set.copy(
                             reps = reps ?: set.reps,
@@ -169,14 +170,14 @@ class RoutineRepository(context: Context) {
 
     private fun addExerciseToDay(routineId: String, dayId: String, exercise: RoutineExercise) {
         updateDay(routineId, dayId) { day ->
-            day.copy(exercises = day.exercises.orEmpty() + exercise)
+            day.copy(exercises = day.exercises + exercise)
         }
     }
 
     private fun updateExercise(routineId: String, dayId: String, routineExerciseId: String, transform: (RoutineExercise) -> RoutineExercise) {
         updateDay(routineId, dayId) { day ->
             day.copy(
-                exercises = day.exercises.orEmpty().map { exercise ->
+                exercises = day.exercises.map { exercise ->
                     if (exercise.id == routineExerciseId) transform(exercise) else exercise
                 }
             )
@@ -185,7 +186,7 @@ class RoutineRepository(context: Context) {
 
     private fun updateDay(routineId: String, dayId: String, transform: (WorkoutDay) -> WorkoutDay) {
         updateRoutine(routineId) { routine ->
-            routine.copy(days = routine.days.orEmpty().map { day -> if (day.id == dayId) transform(day) else day })
+            routine.copy(days = routine.days.map { day -> if (day.id == dayId) transform(day) else day })
         }
     }
 
@@ -197,13 +198,13 @@ class RoutineRepository(context: Context) {
         val sanitized = routines.sanitize()
         _routines.value = sanitized
         // Local user data persistence is centralized here so routines survive app restarts.
-        prefs.edit().putString(KEY_ROUTINES, gson.toJson(sanitized)).apply()
+        prefs.edit { putString(KEY_ROUTINES, gson.toJson(sanitized)) }
     }
 
     private fun updateCustomExercises(exercises: List<CustomExercise>) {
         val sanitized = exercises.sanitizeCustomExercises()
         _customExercises.value = sanitized
-        prefs.edit().putString(KEY_CUSTOM_EXERCISES, gson.toJson(sanitized)).apply()
+        prefs.edit { putString(KEY_CUSTOM_EXERCISES, gson.toJson(sanitized)) }
     }
 
     private fun loadRoutines(): List<Routine> {
@@ -255,33 +256,33 @@ class RoutineRepository(context: Context) {
                             .mapNotNull { it }
                             .mapIndexed { setIndex, set ->
                                 set.copy(
-                                    id = set.id.orEmpty().ifBlank { newId() },
+                                    id = set.id.ifBlank { newId() },
                                     setNo = setIndex + 1,
-                                    reps = set.reps.orEmpty().ifBlank { "8-12" },
-                                    weight = set.weight.orEmpty()
+                                    reps = set.reps.ifBlank { "8-12" },
+                                    weight = set.weight
                                 )
                             }
                         exercise.copy(
-                            id = exercise.id.orEmpty().ifBlank { newId() },
+                            id = exercise.id.ifBlank { newId() },
                             exerciseId = exercise.exerciseId,
-                            name = exercise.name.orEmpty().ifBlank { "Exercise" },
+                            name = exercise.name.ifBlank { "Exercise" },
                             gifUrl = exercise.gifUrl,
                             sets = sets,
-                            rest = exercise.rest.orEmpty().ifBlank { "2:00" },
-                            notes = exercise.notes.orEmpty(),
+                            rest = exercise.rest.ifBlank { "2:00" },
+                            notes = exercise.notes,
                             source = exercise.source
                         )
                     }
                     day.copy(
-                        id = day.id.orEmpty().ifBlank { newId() },
-                        name = day.name.orEmpty().ifBlank { "DAY ${dayIndex + 1}" },
+                        id = day.id.ifBlank { newId() },
+                        name = day.name.ifBlank { "DAY ${dayIndex + 1}" },
                         exercises = exercises
                     )
                 }
 
             routine.copy(
-                id = routine.id.orEmpty().ifBlank { newId() },
-                name = routine.name.orEmpty().ifBlank { "New Routine" },
+                id = routine.id.ifBlank { newId() },
+                name = routine.name.ifBlank { "New Routine" },
                 days = if (days.isEmpty()) listOf(WorkoutDay(id = newId(), name = "DAY 1")) else days
             )
         }.ifEmpty { defaultRoutines() }
@@ -289,11 +290,11 @@ class RoutineRepository(context: Context) {
 
     private fun List<Routine>.isLegacySeed(): Boolean {
         if (size != 2) return false
-        val names = map { it.name.orEmpty() }.toSet()
+        val names = map { it.name }.toSet()
         val oldSeedNames = setOf("Push Day", "Legs & Core")
         val hasUserData = any { routine ->
-            routine.days.orEmpty().any { day -> day.exercises.orEmpty().isNotEmpty() } ||
-                routine.name.orEmpty() !in oldSeedNames
+            routine.days.any { day -> day.exercises.isNotEmpty() } ||
+                routine.name !in oldSeedNames
         }
         return names == oldSeedNames && !hasUserData
     }
@@ -302,17 +303,17 @@ class RoutineRepository(context: Context) {
         val usedIds = mutableSetOf<String>()
         return orEmpty().mapNotNull { exercise ->
             if (exercise == null) return@mapNotNull null
-            val name = exercise.name.orEmpty().trim()
+            val name = exercise.name.trim()
             if (name.isBlank()) return@mapNotNull null
 
-            val preferredId = exercise.id.orEmpty().trim()
+            val preferredId = exercise.id.trim()
             val id = if (preferredId.isNotBlank() && usedIds.add(preferredId)) preferredId else newId().also { usedIds.add(it) }
             exercise.copy(
                 id = id,
                 name = name,
                 sets = exercise.sets.coerceIn(1, 10),
-                reps = exercise.reps.orEmpty().ifBlank { "10" },
-                rest = normalizeRest(exercise.rest.orEmpty()),
+                reps = exercise.reps.ifBlank { "10" },
+                rest = normalizeRest(exercise.rest),
                 source = ExerciseSource.CUSTOM
             )
         }
@@ -320,7 +321,7 @@ class RoutineRepository(context: Context) {
 
     private fun nextDayName(days: List<WorkoutDay>): String {
         val used = days.mapNotNull { day ->
-            DAY_NAME_REGEX.matchEntire(day.name.orEmpty().trim())?.groupValues?.getOrNull(1)?.toIntOrNull()
+            DAY_NAME_REGEX.matchEntire(day.name.trim())?.groupValues?.getOrNull(1)?.toIntOrNull()
         }.toSet()
         val next = generateSequence(1) { it + 1 }.first { it !in used }
         return "DAY $next"
