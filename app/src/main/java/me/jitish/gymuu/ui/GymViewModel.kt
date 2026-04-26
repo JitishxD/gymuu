@@ -74,6 +74,8 @@ class GymViewModel(application: Application) : AndroidViewModel(application) {
     fun updateNotes(routineId: String, dayId: String, routineExerciseId: String, notes: String) = routineRepository.updateNotes(routineId, dayId, routineExerciseId, notes)
     fun upsertCustomExercise(draft: CreateExerciseDraft) = routineRepository.upsertCustomExercise(draft)
     fun deleteCustomExercise(exerciseId: String) = routineRepository.deleteCustomExercise(exerciseId)
+    fun exportRoutineBackup(): String = routineRepository.exportBackup()
+    fun importRoutineBackup(json: String): Result<String> = routineRepository.importBackup(json)
 }
 
 data class GymUiState(

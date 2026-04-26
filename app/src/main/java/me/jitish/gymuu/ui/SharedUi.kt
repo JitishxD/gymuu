@@ -50,26 +50,33 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import kotlinx.coroutines.delay
 import me.jitish.gymuu.data.CreateExerciseDraft
 import me.jitish.gymuu.data.CustomExercise
 import me.jitish.gymuu.data.Routine
@@ -82,7 +89,9 @@ import me.jitish.gymuu.ui.theme.GymMuted
 
 @Composable
 internal fun CreateExerciseDialog(initial: CustomExercise?, onDismiss: () -> Unit, onConfirm: (CreateExerciseDraft) -> Unit) {
-    var name by rememberSaveable(initial?.id) { mutableStateOf(initial?.name.orEmpty()) }
+    var name by rememberSaveable(initial?.id, stateSaver = TextFieldValue.Saver) {
+        mutableStateOf(textFieldValueAtEnd(initial?.name.orEmpty()))
+    }
     var sets by rememberSaveable(initial?.id) { mutableIntStateOf(initial?.sets ?: 3) }
     var reps by rememberSaveable(initial?.id) { mutableStateOf(initial?.reps.orEmpty()) }
     var rest by rememberSaveable(initial?.id) { mutableStateOf(initial?.rest.orEmpty()) }
@@ -92,7 +101,7 @@ internal fun CreateExerciseDialog(initial: CustomExercise?, onDismiss: () -> Uni
         Surface(shape = RoundedCornerShape(28.dp), color = GymCard, border = BorderStroke(1.dp, GymBorder), modifier = Modifier.fillMaxWidth()) {
             Column(Modifier.padding(22.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 Text("CREATE EXERCISE", color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.SemiBold)
-                GymInput(label = "NAME", value = name, onValueChange = { name = it }, placeholder = "e.g. Bench Press")
+                GymInput(label = "NAME", value = name, onValueChange = { name = it }, placeholder = "e.g. Bench Press", autoFocus = true)
                 Column {
                     Text("SETS", color = GymMuted, fontSize = 14.sp, letterSpacing = 1.sp)
                     Box {
@@ -138,7 +147,7 @@ internal fun CreateExerciseDialog(initial: CustomExercise?, onDismiss: () -> Uni
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                     TextButton(onClick = onDismiss) { Text("CANCEL", color = Color.White, letterSpacing = 1.sp) }
                     TextButton(onClick = {
-                        onConfirm(CreateExerciseDraft(id = initial?.id, name = name, sets = sets, reps = reps, rest = rest))
+                        onConfirm(CreateExerciseDraft(id = initial?.id, name = name.text, sets = sets, reps = reps, rest = rest))
                     }) { Text("CONFIRM", color = Color.White, letterSpacing = 1.sp) }
                 }
             }
@@ -149,12 +158,24 @@ internal fun CreateExerciseDialog(initial: CustomExercise?, onDismiss: () -> Uni
 @Composable
 internal fun GymInput(
     label: String,
-    value: String,
-    onValueChange: (String) -> Unit,
+    value: TextFieldValue,
+    onValueChange: (TextFieldValue) -> Unit,
     placeholder: String,
     trailing: @Composable (() -> Unit)? = null,
-    helper: String? = null
+    helper: String? = null,
+    autoFocus: Boolean = false
 ) {
+    val focusRequester = remember { FocusRequester() }
+    val keyboardController = LocalSoftwareKeyboardController.current
+
+    LaunchedEffect(autoFocus) {
+        if (autoFocus) {
+            delay(150)
+            focusRequester.requestFocus()
+            keyboardController?.show()
+        }
+    }
+
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Text(label, color = GymMuted, fontSize = 14.sp, letterSpacing = 1.sp)
         OutlinedTextField(
@@ -173,7 +194,56 @@ internal fun GymInput(
                 cursorColor = Color.White
             ),
             shape = RoundedCornerShape(10.dp),
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier
+                .fillMaxWidth()
+                .focusRequester(focusRequester)
+        )
+        helper?.let { Text(it, color = GymMuted, fontSize = 13.sp) }
+    }
+}
+
+@Composable
+internal fun GymInput(
+    label: String,
+    value: String,
+    onValueChange: (String) -> Unit,
+    placeholder: String,
+    trailing: @Composable (() -> Unit)? = null,
+    helper: String? = null,
+    autoFocus: Boolean = false
+) {
+    val focusRequester = remember { FocusRequester() }
+    val keyboardController = LocalSoftwareKeyboardController.current
+
+    LaunchedEffect(autoFocus) {
+        if (autoFocus) {
+            delay(150)
+            focusRequester.requestFocus()
+            keyboardController?.show()
+        }
+    }
+
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text(label, color = GymMuted, fontSize = 14.sp, letterSpacing = 1.sp)
+        OutlinedTextField(
+            value = value,
+            onValueChange = onValueChange,
+            placeholder = { Text(placeholder, color = Color(0xFF6E6E6E)) },
+            trailingIcon = trailing,
+            singleLine = true,
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedTextColor = Color.White,
+                unfocusedTextColor = Color.White,
+                focusedContainerColor = Color(0xFF151515),
+                unfocusedContainerColor = Color(0xFF151515),
+                focusedBorderColor = GymBorder,
+                unfocusedBorderColor = GymBorder,
+                cursorColor = Color.White
+            ),
+            shape = RoundedCornerShape(10.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .focusRequester(focusRequester)
         )
         helper?.let { Text(it, color = GymMuted, fontSize = 13.sp) }
     }
@@ -181,13 +251,15 @@ internal fun GymInput(
 
 @Composable
 internal fun NameDialog(title: String, initialValue: String, label: String, onDismiss: () -> Unit, onConfirm: (String) -> Unit) {
-    var value by rememberSaveable(initialValue) { mutableStateOf(initialValue) }
+    var value by rememberSaveable(initialValue, stateSaver = TextFieldValue.Saver) {
+        mutableStateOf(textFieldValueAtEnd(initialValue))
+    }
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = GymCard,
         title = { Text(title, color = Color.White) },
-        text = { GymInput(label = label, value = value, onValueChange = { value = it }, placeholder = "e.g. Push Day") },
-        confirmButton = { TextButton(onClick = { onConfirm(value) }) { Text("CONFIRM", color = Color.White) } },
+        text = { GymInput(label = label, value = value, onValueChange = { value = it }, placeholder = "e.g. Push Day", autoFocus = true) },
+        confirmButton = { TextButton(onClick = { onConfirm(value.text) }) { Text("CONFIRM", color = Color.White) } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("CANCEL", color = GymMuted) } }
     )
 }
@@ -432,4 +504,11 @@ internal fun String.toTitleCase(): String {
     return split(" ").joinToString(" ") { word ->
         word.replaceFirstChar { char -> if (char.isLowerCase()) char.titlecase() else char.toString() }
     }
+}
+
+private fun textFieldValueAtEnd(text: String): TextFieldValue {
+    return TextFieldValue(
+        text = text,
+        selection = TextRange(text.length)
+    )
 }

@@ -1,6 +1,9 @@
 package me.jitish.gymuu.ui
 
 import android.net.Uri
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -39,6 +42,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -55,6 +59,7 @@ import me.jitish.gymuu.data.Routine
 import me.jitish.gymuu.data.WorkoutDay
 import me.jitish.gymuu.ui.theme.GymBlack
 import me.jitish.gymuu.ui.theme.GymMuted
+import java.time.LocalDate
 
 private object Routes {
     const val START = "start"
@@ -153,8 +158,37 @@ private fun RoutineLaunchScreen(state: GymUiState, navController: NavHostControl
 
 @Composable
 private fun RoutineListScreen(state: GymUiState, viewModel: GymViewModel, navController: NavHostController) {
+    val context = LocalContext.current
     var routineDialogState by remember { mutableStateOf<RoutineDialogState?>(null) }
     var routineToDelete by remember { mutableStateOf<Routine?>(null) }
+    val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+
+        runCatching {
+            context.contentResolver.openOutputStream(uri)?.bufferedWriter()?.use { writer ->
+                writer.write(viewModel.exportRoutineBackup())
+            } ?: error("Couldn't open the selected file.")
+        }.onSuccess {
+            Toast.makeText(context, "Routines exported.", Toast.LENGTH_SHORT).show()
+        }.onFailure { error ->
+            Toast.makeText(context, error.message ?: "Export failed.", Toast.LENGTH_LONG).show()
+        }
+    }
+    val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+
+        runCatching {
+            context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { reader ->
+                reader.readText()
+            } ?: error("Couldn't read the selected file.")
+        }.mapCatching { json ->
+            viewModel.importRoutineBackup(json).getOrThrow()
+        }.onSuccess { message ->
+            Toast.makeText(context, message, Toast.LENGTH_LONG).show()
+        }.onFailure { error ->
+            Toast.makeText(context, error.message ?: "Import failed.", Toast.LENGTH_LONG).show()
+        }
+    }
 
     fun closeRoutineDialog() {
         routineDialogState = null
@@ -185,6 +219,42 @@ private fun RoutineListScreen(state: GymUiState, viewModel: GymViewModel, navCon
                 }
             }
             item { SectionHeading("MY ROUTINES") }
+            item {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Button(
+                        onClick = { exportLauncher.launch(defaultRoutineBackupFileName()) },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color.White,
+                            contentColor = Color.Black
+                        ),
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("EXPORT", fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp)
+                    }
+                    Button(
+                        onClick = { importLauncher.launch(arrayOf("application/json", "text/plain")) },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFF1D1D1D),
+                            contentColor = Color.White
+                        ),
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("IMPORT", fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp)
+                    }
+                }
+            }
+            item {
+                Text(
+                    text = "Export saves all routines and custom exercises as a JSON backup.",
+                    color = GymMuted,
+                    fontSize = 13.sp
+                )
+            }
             items(state.routines, key = { it.id }) { routine ->
                 RoutineRow(
                     routine = routine,
@@ -553,3 +623,7 @@ private fun SelectExerciseScreen(
 }
 
 private const val BUILT_IN_PAGE_SIZE = 24
+
+private fun defaultRoutineBackupFileName(): String {
+    return "gymuu-routines-${LocalDate.now()}.json"
+}
