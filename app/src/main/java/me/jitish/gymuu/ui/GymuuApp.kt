@@ -26,10 +26,12 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DrawerValue
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -58,9 +60,11 @@ import androidx.navigation.navArgument
 import kotlinx.coroutines.launch
 import me.jitish.gymuu.R
 import me.jitish.gymuu.data.CustomExercise
+import me.jitish.gymuu.data.Exercise
 import me.jitish.gymuu.data.Routine
 import me.jitish.gymuu.data.WorkoutDay
 import me.jitish.gymuu.ui.theme.GymBlack
+import me.jitish.gymuu.ui.theme.GymCard
 import me.jitish.gymuu.ui.theme.GymMuted
 import java.time.LocalDate
 
@@ -331,8 +335,11 @@ private fun WorkoutDayScreen(
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
     var dayToRename by remember { mutableStateOf<WorkoutDay?>(null) }
+    var selectedInfoExercise by remember { mutableStateOf<Exercise?>(null) }
+    var showNoInfoDialog by remember { mutableStateOf(false) }
     var pendingDayId by remember { mutableStateOf<String?>(null) }
     val days = routine?.days.orEmpty()
+    val exercisesById = remember(state.exercises) { state.exercises.associateBy { it.exerciseId } }
     val routeDayIndex = days.indexOfFirst { it.id == dayId }.takeIf { it >= 0 } ?: 0
     val pagerState = rememberPagerState(initialPage = routeDayIndex, pageCount = { days.size })
     val activeDay = days.getOrNull(pagerState.currentPage.coerceIn(0, (days.size - 1).coerceAtLeast(0)))
@@ -453,6 +460,14 @@ private fun WorkoutDayScreen(
                                         dayId = day.id,
                                         exercise = exercise,
                                         viewModel = viewModel,
+                                        onInfoClick = {
+                                            val info = exercise.exerciseId?.let(exercisesById::get)
+                                            if (info != null) {
+                                                selectedInfoExercise = info
+                                            } else {
+                                                showNoInfoDialog = true
+                                            }
+                                        },
                                         onSwap = {
                                             navController.navigate(Routes.select(routine.id, day.id, exercise.id))
                                         }
@@ -475,6 +490,27 @@ private fun WorkoutDayScreen(
             onConfirm = { name ->
                 viewModel.updateDayName(routineId, day.id, name)
                 closeRenameDayDialog()
+            }
+        )
+    }
+
+    selectedInfoExercise?.let { exercise ->
+        ExerciseInfoDialog(
+            exercise = exercise,
+            onDismiss = { selectedInfoExercise = null }
+        )
+    }
+
+    if (showNoInfoDialog) {
+        AlertDialog(
+            onDismissRequest = { showNoInfoDialog = false },
+            containerColor = GymCard,
+            title = { Text("EXERCISE INFO", color = Color.White) },
+            text = { Text("No information available.", color = GymMuted) },
+            confirmButton = {
+                TextButton(onClick = { showNoInfoDialog = false }) {
+                    Text("CLOSE", color = Color.White)
+                }
             }
         )
     }

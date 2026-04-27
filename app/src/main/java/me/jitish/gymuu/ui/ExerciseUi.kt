@@ -24,10 +24,12 @@ import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.FitnessCenter
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.NoteAlt
 import androidx.compose.material.icons.filled.RemoveCircleOutline
 import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material.icons.filled.Timer
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
@@ -35,6 +37,7 @@ import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -49,6 +52,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import coil.ImageLoader
 import coil.compose.SubcomposeAsyncImage
 import coil.decode.GifDecoder
@@ -73,6 +78,7 @@ internal fun RoutineExerciseCard(
     dayId: String,
     exercise: RoutineExercise,
     viewModel: GymViewModel,
+    onInfoClick: () -> Unit,
     onSwap: () -> Unit
 ) {
     Card(
@@ -100,6 +106,9 @@ internal fun RoutineExerciseCard(
                     letterSpacing = 2.sp,
                     modifier = Modifier.weight(1f)
                 )
+                CompactIconButton(onClick = onInfoClick) {
+                    Icon(Icons.Default.Info, contentDescription = "Exercise info", tint = Color.White, modifier = Modifier.size(22.dp))
+                }
                 CompactIconButton(onClick = onSwap) {
                     Icon(Icons.Default.SwapHoriz, contentDescription = "Swap exercise", tint = Color.White, modifier = Modifier.size(22.dp))
                 }
@@ -158,6 +167,50 @@ internal fun RoutineExerciseCard(
                 )
             }
         }
+    }
+}
+
+@Composable
+internal fun ExerciseInfoDialog(exercise: Exercise, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = GymCard,
+        title = { Text(exercise.name.toTitleCase(), color = Color.White, fontSize = 22.sp) },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                ExerciseInfoLine(label = "Body Parts", value = exercise.bodyParts.joinToString(", "))
+                ExerciseInfoLine(label = "Equipment", value = exercise.equipments.joinToString(", "))
+                ExerciseInfoLine(label = "Target Muscles", value = exercise.targetMuscles.joinToString(", "))
+                ExerciseInfoLine(label = "Secondary", value = exercise.secondaryMuscles.joinToString(", "))
+                Text("INSTRUCTIONS", color = GymMuted, fontSize = 13.sp, letterSpacing = 1.sp)
+                if (exercise.instructions.isEmpty()) {
+                    Text("No instructions available.", color = GymMuted, fontSize = 14.sp)
+                } else {
+                    exercise.instructions.forEachIndexed { index, step ->
+                        Text("${index + 1}. $step", color = Color.White, fontSize = 14.sp)
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("CLOSE", color = Color.White)
+            }
+        }
+    )
+}
+
+@Composable
+private fun ExerciseInfoLine(label: String, value: String) {
+    val text = value.ifBlank { "-" }
+    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text(label.uppercase(), color = GymMuted, fontSize = 13.sp, letterSpacing = 1.sp)
+        Text(text, color = Color.White, fontSize = 14.sp)
     }
 }
 
