@@ -537,18 +537,21 @@ internal fun InlineEditText(
     onValueChange: (String) -> Unit,
     modifier: Modifier = Modifier,
     width: Dp = 110.dp,
-    placeholder: String = ""
+    placeholder: String = "",
+    keyboardType: KeyboardType = KeyboardType.Text,
+    textColor: Color = Color.White,
+    placeholderColor: Color = GymMuted
 ) {
     BasicTextField(
         value = value,
         onValueChange = onValueChange,
         singleLine = true,
-        textStyle = TextStyle(color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold),
+        textStyle = TextStyle(color = textColor, fontSize = 16.sp, fontWeight = FontWeight.Bold),
         modifier = modifier.width(width),
-        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
+        keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
         decorationBox = { inner ->
             Box {
-                if (value.isBlank()) Text(placeholder, color = GymMuted, fontSize = 16.sp)
+                if (value.isBlank()) Text(placeholder, color = placeholderColor, fontSize = 16.sp)
                 inner()
             }
         }
