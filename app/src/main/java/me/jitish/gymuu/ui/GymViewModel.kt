@@ -66,6 +66,8 @@ class GymViewModel(application: Application) : AndroidViewModel(application) {
     fun removeDay(routineId: String, dayId: String) = routineRepository.removeDay(routineId, dayId)
     fun addBuiltInExercise(routineId: String, dayId: String, exercise: Exercise) = routineRepository.addBuiltInExercise(routineId, dayId, exercise)
     fun addCustomExercise(routineId: String, dayId: String, exercise: CustomExercise) = routineRepository.addCustomExercise(routineId, dayId, exercise)
+    fun swapWithBuiltInExercise(routineId: String, dayId: String, routineExerciseId: String, exercise: Exercise) = routineRepository.swapWithBuiltInExercise(routineId, dayId, routineExerciseId, exercise)
+    fun swapWithCustomExercise(routineId: String, dayId: String, routineExerciseId: String, exercise: CustomExercise) = routineRepository.swapWithCustomExercise(routineId, dayId, routineExerciseId, exercise)
     fun removeExercise(routineId: String, dayId: String, routineExerciseId: String) = routineRepository.removeExercise(routineId, dayId, routineExerciseId)
     fun addSet(routineId: String, dayId: String, routineExerciseId: String) = routineRepository.addSet(routineId, dayId, routineExerciseId)
     fun removeSet(routineId: String, dayId: String, routineExerciseId: String, setId: String) = routineRepository.removeSet(routineId, dayId, routineExerciseId, setId)

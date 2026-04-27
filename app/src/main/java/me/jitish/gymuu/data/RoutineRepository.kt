@@ -99,6 +99,28 @@ class RoutineRepository(context: Context) {
         addExerciseToDay(routineId, dayId, routineExercise)
     }
 
+    fun swapWithBuiltInExercise(routineId: String, dayId: String, routineExerciseId: String, exercise: Exercise) {
+        updateExercise(routineId, dayId, routineExerciseId) { current ->
+            current.copy(
+                exerciseId = exercise.exerciseId,
+                name = exercise.name,
+                gifUrl = exercise.gifUrl,
+                source = ExerciseSource.BUILT_IN
+            )
+        }
+    }
+
+    fun swapWithCustomExercise(routineId: String, dayId: String, routineExerciseId: String, exercise: CustomExercise) {
+        updateExercise(routineId, dayId, routineExerciseId) { current ->
+            current.copy(
+                exerciseId = exercise.id,
+                name = exercise.name,
+                gifUrl = null,
+                source = ExerciseSource.CUSTOM
+            )
+        }
+    }
+
     fun removeExercise(routineId: String, dayId: String, routineExerciseId: String) {
         updateDay(routineId, dayId) { day ->
             day.copy(exercises = day.exercises.filterNot { it.id == routineExerciseId })

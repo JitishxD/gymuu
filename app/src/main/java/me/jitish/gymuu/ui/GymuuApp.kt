@@ -68,10 +68,15 @@ private object Routes {
     const val START = "start"
     const val ROUTINES = "routines"
     const val WORKOUT = "workout/{routineId}/{dayId}"
-    const val SELECT = "select/{routineId}/{dayId}"
+    const val SELECT = "select/{routineId}/{dayId}?swapExerciseId={swapExerciseId}"
 
     fun workout(routineId: String, dayId: String) = "workout/${Uri.encode(routineId)}/${Uri.encode(dayId)}"
-    fun select(routineId: String, dayId: String) = "select/${Uri.encode(routineId)}/${Uri.encode(dayId)}"
+    fun select(routineId: String, dayId: String, swapExerciseId: String? = null): String {
+        val base = "select/${Uri.encode(routineId)}/${Uri.encode(dayId)}"
+        return swapExerciseId?.takeIf { it.isNotBlank() }
+            ?.let { "$base?swapExerciseId=${Uri.encode(it)}" }
+            ?: base
+    }
 }
 
 private sealed interface RoutineDialogState {
@@ -118,7 +123,12 @@ fun GymuuApp(viewModel: GymViewModel) {
                 route = Routes.SELECT,
                 arguments = listOf(
                     navArgument("routineId") { type = NavType.StringType },
-                    navArgument("dayId") { type = NavType.StringType }
+                    navArgument("dayId") { type = NavType.StringType },
+                    navArgument("swapExerciseId") {
+                        type = NavType.StringType
+                        nullable = true
+                        defaultValue = null
+                    }
                 )
             ) { entry ->
                 SelectExerciseScreen(
@@ -126,7 +136,8 @@ fun GymuuApp(viewModel: GymViewModel) {
                     viewModel = viewModel,
                     navController = navController,
                     routineId = Uri.decode(entry.arguments?.getString("routineId").orEmpty()),
-                    dayId = Uri.decode(entry.arguments?.getString("dayId").orEmpty())
+                    dayId = Uri.decode(entry.arguments?.getString("dayId").orEmpty()),
+                    swapExerciseId = entry.arguments?.getString("swapExerciseId")?.let(Uri::decode)
                 )
             }
         }
@@ -441,7 +452,10 @@ private fun WorkoutDayScreen(
                                         routineId = routine.id,
                                         dayId = day.id,
                                         exercise = exercise,
-                                        viewModel = viewModel
+                                        viewModel = viewModel,
+                                        onSwap = {
+                                            navController.navigate(Routes.select(routine.id, day.id, exercise.id))
+                                        }
                                     )
                                 }
                             }
@@ -472,7 +486,8 @@ private fun SelectExerciseScreen(
     viewModel: GymViewModel,
     navController: NavHostController,
     routineId: String,
-    dayId: String
+    dayId: String,
+    swapExerciseId: String?
 ) {
     var exerciseDialogState by remember { mutableStateOf<ExerciseDialogState?>(null) }
     var visibleBuiltInCount by rememberSaveable(routineId, dayId) { mutableIntStateOf(BUILT_IN_PAGE_SIZE) }
@@ -492,6 +507,10 @@ private fun SelectExerciseScreen(
             .associateBy { it.exerciseId.orEmpty() }
     }
     val selectedIds = selectedByExerciseId.keys
+    val swapTargetExercise = remember(targetDay?.id, targetDay?.exercises, swapExerciseId) {
+        targetDay?.exercises?.firstOrNull { it.id == swapExerciseId }
+    }
+    val isSwapMode = swapTargetExercise != null
 
     fun closeExerciseDialog() {
         exerciseDialogState = null
@@ -531,7 +550,11 @@ private fun SelectExerciseScreen(
 
     Scaffold(
         containerColor = GymBlack,
-        floatingActionButton = { GymFab(onClick = { exerciseDialogState = ExerciseDialogState.Create }) }
+        floatingActionButton = {
+            if (!isSwapMode) {
+                GymFab(onClick = { exerciseDialogState = ExerciseDialogState.Create })
+            }
+        }
     ) { padding ->
         LazyColumn(
             modifier = Modifier
@@ -541,7 +564,7 @@ private fun SelectExerciseScreen(
             verticalArrangement = Arrangement.spacedBy(18.dp)
         ) {
             item {
-                TopTitleBar(title = "SELECT EXERCISE", onBack = navigateBackToDay)
+                TopTitleBar(title = if (isSwapMode) "SWAP EXERCISE" else "SELECT EXERCISE", onBack = navigateBackToDay)
             }
             item {
                 SearchBox(query = state.searchQuery, onQueryChange = viewModel::onSearchChange)
@@ -565,17 +588,23 @@ private fun SelectExerciseScreen(
             if (customExercises.isNotEmpty()) {
                 item { SectionHeading("CUSTOM") }
                 items(customExercises, key = { it.id }) { custom ->
-                    val selected = selectedIds.contains(custom.id)
+                    val selected = if (isSwapMode) swapTargetExercise.exerciseId == custom.id else selectedIds.contains(custom.id)
                     CustomExerciseCard(
                         exercise = custom,
                         selected = selected,
                         onClick = {
-                            if (selected) {
-                                selectedByExerciseId[custom.id]?.let {
-                                    viewModel.removeExercise(routineId, dayId, it.id)
-                                }
+                            if (isSwapMode) {
+                                viewModel.swapWithCustomExercise(routineId, dayId, swapTargetExercise.id, custom)
+                                // TODO: idk for now keep swap picker open after selection.
+                                // navigateBackToDay()
                             } else {
-                                viewModel.addCustomExercise(routineId, dayId, custom)
+                                if (selected) {
+                                    selectedByExerciseId[custom.id]?.let {
+                                        viewModel.removeExercise(routineId, dayId, it.id)
+                                    }
+                                } else {
+                                    viewModel.addCustomExercise(routineId, dayId, custom)
+                                }
                             }
                         },
                         onEdit = {
@@ -589,17 +618,23 @@ private fun SelectExerciseScreen(
             builtInSections.forEach { (category, exercises) ->
                 item { SectionHeading(category.label) }
                 items(exercises, key = { it.exerciseId }) { exercise ->
-                    val selected = selectedIds.contains(exercise.exerciseId)
+                    val selected = if (isSwapMode) swapTargetExercise.exerciseId == exercise.exerciseId else selectedIds.contains(exercise.exerciseId)
                     ExerciseListCard(
                         exercise = exercise,
                         selected = selected,
                         onClick = {
-                            if (selected) {
-                                selectedByExerciseId[exercise.exerciseId]?.let {
-                                    viewModel.removeExercise(routineId, dayId, it.id)
-                                }
+                            if (isSwapMode) {
+                                viewModel.swapWithBuiltInExercise(routineId, dayId, swapTargetExercise.id, exercise)
+                                // TODO: idk for now keep swap picker open after selection.
+                                // navigateBackToDay()
                             } else {
-                                viewModel.addBuiltInExercise(routineId, dayId, exercise)
+                                if (selected) {
+                                    selectedByExerciseId[exercise.exerciseId]?.let {
+                                        viewModel.removeExercise(routineId, dayId, it.id)
+                                    }
+                                } else {
+                                    viewModel.addBuiltInExercise(routineId, dayId, exercise)
+                                }
                             }
                         }
                     )

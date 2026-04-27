@@ -67,7 +67,14 @@ import me.jitish.gymuu.ui.theme.GymDanger
 import me.jitish.gymuu.ui.theme.GymMuted
 
 @Composable
-internal fun RoutineExerciseCard(index: Int, routineId: String, dayId: String, exercise: RoutineExercise, viewModel: GymViewModel) {
+internal fun RoutineExerciseCard(
+    index: Int,
+    routineId: String,
+    dayId: String,
+    exercise: RoutineExercise,
+    viewModel: GymViewModel,
+    onSwap: () -> Unit
+) {
     Card(
         shape = RoundedCornerShape(8.dp),
         colors = CardDefaults.cardColors(containerColor = GymCard),
@@ -93,7 +100,9 @@ internal fun RoutineExerciseCard(index: Int, routineId: String, dayId: String, e
                     letterSpacing = 2.sp,
                     modifier = Modifier.weight(1f)
                 )
-                Icon(Icons.Default.SwapHoriz, contentDescription = null, tint = Color.White, modifier = Modifier.size(22.dp))
+                CompactIconButton(onClick = onSwap) {
+                    Icon(Icons.Default.SwapHoriz, contentDescription = "Swap exercise", tint = Color.White, modifier = Modifier.size(22.dp))
+                }
                 CompactIconButton(onClick = { viewModel.removeExercise(routineId, dayId, exercise.id) }) {
                     Icon(Icons.Default.DeleteOutline, contentDescription = "Delete exercise", tint = GymDanger, modifier = Modifier.size(24.dp))
                 }
