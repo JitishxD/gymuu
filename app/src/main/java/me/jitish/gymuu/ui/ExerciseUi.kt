@@ -100,13 +100,13 @@ internal fun RoutineExerciseCard(
     val isRestTimerRunning = remember(exercise.id) { mutableStateOf(false) }
     val remainingRestSeconds = remember(exercise.id) { mutableStateOf(0) }
     val restTimerJob = remember(exercise.id) { mutableStateOf<Job?>(null) }
-    val originalRestValue = remember(exercise.id) { mutableStateOf<String?>(null) }
+    val normalizedRestValue = remember(exercise.id) { mutableStateOf<String?>(null) }
 
-    fun restoreOriginalRestValue() {
-        originalRestValue.value?.let { original ->
-            viewModel.updateRest(routineId, dayId, exercise.id, original)
+    fun restoreNormalizedRestValue() {
+        normalizedRestValue.value?.let { normalized ->
+            viewModel.updateRest(routineId, dayId, exercise.id, normalized)
         }
-        originalRestValue.value = null
+        normalizedRestValue.value = null
     }
 
     fun cancelRestTimer() {
@@ -114,7 +114,7 @@ internal fun RoutineExerciseCard(
         restTimerJob.value?.cancel()
         restTimerJob.value = null
         remainingRestSeconds.value = 0
-        restoreOriginalRestValue()
+        restoreNormalizedRestValue()
     }
 
     fun startRestTimer() {
@@ -123,7 +123,10 @@ internal fun RoutineExerciseCard(
         val totalRestSeconds = parseRestTimeToSeconds(exercise.rest)
         if (totalRestSeconds <= 0) return
 
-        originalRestValue.value = exercise.rest
+        // Normalize the raw input (e.g. "120:00" → "99:59", "7" → "07:00") and persist it
+        val correctedRest = formatRestCountdown(totalRestSeconds)
+        normalizedRestValue.value = correctedRest
+        viewModel.updateRest(routineId, dayId, exercise.id, correctedRest)
 
         isRestTimerRunning.value = true
         remainingRestSeconds.value = totalRestSeconds
@@ -150,7 +153,7 @@ internal fun RoutineExerciseCard(
                 isRestTimerRunning.value = false
                 remainingRestSeconds.value = 0
                 restTimerJob.value = null
-                restoreOriginalRestValue()
+                restoreNormalizedRestValue()
             }
         }
     }
@@ -525,26 +528,35 @@ private object SharedGifImageLoader {
     }
 }
 
+private const val MAX_REST_SECONDS = 5999 // 99:59
+private const val DEFAULT_REST_SECONDS = 120  // 2:00
+
 private fun parseRestTimeToSeconds(restValue: String): Int {
     val normalized = restValue.trim()
     if (normalized.isBlank()) return 0
 
-    val match = Regex("""^(\d{1,2}):(\d{1,2})$""").matchEntire(normalized) ?: return 0
+    val match = Regex("""^(\d+):(\d{1,2})$""").matchEntire(normalized)
+    if (match != null) {
+        val minutes = match.groupValues[1].toIntOrNull() ?: return DEFAULT_REST_SECONDS
+        val seconds = match.groupValues[2].toIntOrNull() ?: return DEFAULT_REST_SECONDS
+        if (seconds > 59) return DEFAULT_REST_SECONDS
+        return (minutes * 60 + seconds).coerceIn(1, MAX_REST_SECONDS)
+    }
 
-    val minutes = match.groupValues[1].toIntOrNull() ?: return 0
-    val seconds = match.groupValues[2].toIntOrNull() ?: return 0
+    // Bare number – treat as minutes (e.g. "2" → 2:00)
+    val bareMinutes = normalized.toIntOrNull()
+    if (bareMinutes != null && bareMinutes > 0) {
+        return (bareMinutes * 60).coerceIn(1, MAX_REST_SECONDS)
+    }
 
-    if (minutes !in 0..99 || seconds !in 0..59) return 0
-
-    return minutes * 60 + seconds
+    return DEFAULT_REST_SECONDS
 }
 
-private val TIME_INPUT_PATTERN = Regex("""^\d{0,2}(:\d{0,2})?$""")
+private val TIME_INPUT_PATTERN = Regex("""^\d{0,4}(:\d{0,2})?$""")
 
 private fun formatRestCountdown(totalSeconds: Int): String {
-    val safeSeconds = totalSeconds.coerceIn(0, 5999)
-    val minutes = safeSeconds / 60
-    val seconds = safeSeconds % 60
+    val minutes = totalSeconds / 60
+    val seconds = totalSeconds % 60
     return "%02d:%02d".format(minutes, seconds)
 }
 

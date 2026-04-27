@@ -417,7 +417,7 @@ class RoutineRepository(context: Context) {
                             name = exercise.name.safeString().ifBlank { "Exercise" },
                             gifUrl = exercise.gifUrl,
                             sets = sets,
-                            rest = exercise.rest.safeString().ifBlank { "2:00" },
+                            rest = exercise.rest.safeString(),
                             notes = exercise.notes.safeString(),
                             source = exercise.source.safeRoutineSource()
                         )
