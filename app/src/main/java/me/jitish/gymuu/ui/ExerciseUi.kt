@@ -53,6 +53,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import coil.ImageLoader
 import coil.compose.SubcomposeAsyncImage
@@ -175,24 +176,32 @@ internal fun ExerciseInfoDialog(exercise: Exercise, onDismiss: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = GymCard,
-        title = { Text(exercise.name.toTitleCase(), color = Color.White, fontSize = 22.sp) },
+        title = {
+            SelectionContainer {
+                Text(exercise.name.toTitleCase(), color = Color.White, fontSize = 22.sp)
+            }
+        },
         text = {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                ExerciseInfoLine(label = "Body Parts", value = exercise.bodyParts.joinToString(", "))
-                ExerciseInfoLine(label = "Equipment", value = exercise.equipments.joinToString(", "))
-                ExerciseInfoLine(label = "Target Muscles", value = exercise.targetMuscles.joinToString(", "))
-                ExerciseInfoLine(label = "Secondary", value = exercise.secondaryMuscles.joinToString(", "))
-                Text("INSTRUCTIONS", color = GymMuted, fontSize = 13.sp, letterSpacing = 1.sp)
-                if (exercise.instructions.isEmpty()) {
-                    Text("No instructions available.", color = GymMuted, fontSize = 14.sp)
-                } else {
-                    exercise.instructions.forEachIndexed { index, step ->
-                        Text("${index + 1}. $step", color = Color.White, fontSize = 14.sp)
+            SelectionContainer {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    ExerciseInfoLine(label = "Body Parts", value = exercise.bodyParts.joinToString(", "))
+                    ExerciseInfoLine(label = "Equipment", value = exercise.equipments.joinToString(", "))
+                    ExerciseInfoLine(label = "Target Muscles", value = exercise.targetMuscles.joinToString(", "))
+                    ExerciseInfoLine(label = "Secondary", value = exercise.secondaryMuscles.joinToString(", "))
+                    Text("INSTRUCTIONS", color = GymMuted, fontSize = 13.sp, letterSpacing = 1.sp)
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        if (exercise.instructions.isEmpty()) {
+                            Text("No instructions available.", color = GymMuted, fontSize = 14.sp)
+                        } else {
+                            exercise.instructions.forEachIndexed { index, step ->
+                                Text("${index + 1}. $step", color = Color.White, fontSize = 14.sp)
+                            }
+                        }
                     }
                 }
             }
