@@ -44,6 +44,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -55,6 +56,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import kotlinx.coroutines.launch
+import me.jitish.gymuu.R
 import me.jitish.gymuu.data.CustomExercise
 import me.jitish.gymuu.data.Routine
 import me.jitish.gymuu.data.WorkoutDay
@@ -214,7 +216,14 @@ private fun RoutineListScreen(state: GymUiState, viewModel: GymViewModel, navCon
         ) {
             item {
                 Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
-                    GymLogo()
+                    AppIconBadge()
+                    Text(
+                        text = stringResource(R.string.app_name),
+                        color = Color.White,
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        letterSpacing = 1.sp
+                    )
                     Spacer(Modifier.height(24.dp))
                     DividerLine()
                 }
@@ -251,9 +260,9 @@ private fun RoutineListScreen(state: GymUiState, viewModel: GymViewModel, navCon
             }
             item {
                 Text(
-                    text = "Export saves all routines and custom exercises as a JSON backup.",
+                    text = "Export saves all routines and custom exercises as a JSON backup file.",
                     color = GymMuted,
-                    fontSize = 13.sp
+                    fontSize = 16.sp
                 )
             }
             items(state.routines, key = { it.id }) { routine ->
