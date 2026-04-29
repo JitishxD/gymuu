@@ -1,15 +1,4 @@
-package me.jitish.gymuu.data
-
-data class Exercise(
-    val exerciseId: String = "",
-    val name: String = "",
-    val gifUrl: String = "",
-    val bodyParts: List<String> = emptyList(),
-    val equipments: List<String> = emptyList(),
-    val targetMuscles: List<String> = emptyList(),
-    val secondaryMuscles: List<String> = emptyList(),
-    val instructions: List<String> = emptyList()
-)
+package me.jitish.gymuu.data.routine
 
 data class Routine(
     val id: String = "",
@@ -47,6 +36,12 @@ enum class ExerciseSource {
     CUSTOM
 }
 
+enum class RoutineExercisePastePosition {
+    END,
+    BEFORE,
+    AFTER
+}
+
 data class CustomExercise(
     val id: String = "",
     val name: String = "",
@@ -63,3 +58,4 @@ data class CreateExerciseDraft(
     val reps: String = "",
     val rest: String = ""
 )
+

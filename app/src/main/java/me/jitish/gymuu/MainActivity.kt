@@ -8,8 +8,8 @@ import androidx.activity.viewModels
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Density
-import me.jitish.gymuu.ui.GymuuApp
 import me.jitish.gymuu.ui.GymViewModel
+import me.jitish.gymuu.ui.navigation.GymuuApp
 import me.jitish.gymuu.ui.theme.GymuuTheme
 
 class MainActivity : ComponentActivity() {

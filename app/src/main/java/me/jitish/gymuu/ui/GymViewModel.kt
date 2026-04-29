@@ -9,13 +9,15 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import me.jitish.gymuu.data.CreateExerciseDraft
-import me.jitish.gymuu.data.CustomExercise
-import me.jitish.gymuu.data.Exercise
-import me.jitish.gymuu.data.ExerciseRepository
-import me.jitish.gymuu.data.Routine
-import me.jitish.gymuu.data.RoutineRepository
-import me.jitish.gymuu.data.WorkoutDay
+import me.jitish.gymuu.data.exercise.Exercise
+import me.jitish.gymuu.data.exercise.ExerciseRepository
+import me.jitish.gymuu.data.routine.CreateExerciseDraft
+import me.jitish.gymuu.data.routine.CustomExercise
+import me.jitish.gymuu.data.routine.Routine
+import me.jitish.gymuu.data.routine.RoutineExercise
+import me.jitish.gymuu.data.routine.RoutineExercisePastePosition
+import me.jitish.gymuu.data.routine.RoutineRepository
+import me.jitish.gymuu.data.routine.WorkoutDay
 
 class GymViewModel(application: Application) : AndroidViewModel(application) {
     private val exerciseRepository = ExerciseRepository(application)
@@ -23,21 +25,27 @@ class GymViewModel(application: Application) : AndroidViewModel(application) {
 
     private val searchQuery = MutableStateFlow("")
     private val selectedCategory = MutableStateFlow(ExerciseCategory.ALL)
+    private val routineExerciseClipboard = MutableStateFlow<List<RoutineExercise>>(emptyList())
 
     val uiState: StateFlow<GymUiState> = combine(
-        exerciseRepository.exercises,
-        routineRepository.routines,
-        routineRepository.customExercises,
-        searchQuery,
-        selectedCategory
-    ) { exercises, routines, customExercises, search, category ->
-        GymUiState(
-            exercises = exercises,
-            routines = routines,
-            customExercises = customExercises,
-            searchQuery = search,
-            selectedCategory = category
-        )
+        combine(
+            exerciseRepository.exercises,
+            routineRepository.routines,
+            routineRepository.customExercises,
+            searchQuery,
+            selectedCategory
+        ) { exercises, routines, customExercises, search, category ->
+            GymUiState(
+                exercises = exercises,
+                routines = routines,
+                customExercises = customExercises,
+                searchQuery = search,
+                selectedCategory = category
+            )
+        },
+        routineExerciseClipboard
+    ) { state, copiedExercises ->
+        state.copy(copiedExercises = copiedExercises)
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5_000),
@@ -69,6 +77,31 @@ class GymViewModel(application: Application) : AndroidViewModel(application) {
     fun swapWithBuiltInExercise(routineId: String, dayId: String, routineExerciseId: String, exercise: Exercise) = routineRepository.swapWithBuiltInExercise(routineId, dayId, routineExerciseId, exercise)
     fun swapWithCustomExercise(routineId: String, dayId: String, routineExerciseId: String, exercise: CustomExercise) = routineRepository.swapWithCustomExercise(routineId, dayId, routineExerciseId, exercise)
     fun removeExercise(routineId: String, dayId: String, routineExerciseId: String) = routineRepository.removeExercise(routineId, dayId, routineExerciseId)
+    fun removeExercises(routineId: String, dayId: String, routineExerciseIds: Set<String>) = routineRepository.removeExercises(routineId, dayId, routineExerciseIds)
+    fun copyExercises(exercises: List<RoutineExercise>) {
+        routineExerciseClipboard.value = exercises
+    }
+    fun clearCopiedExercises() {
+        routineExerciseClipboard.value = emptyList()
+    }
+    fun pasteCopiedExercises(
+        routineId: String,
+        dayId: String,
+        anchorExerciseId: String? = null,
+        position: RoutineExercisePastePosition = RoutineExercisePastePosition.END
+    ): Int {
+        val copiedExercises = routineExerciseClipboard.value
+        routineRepository.pasteExercisesToDay(
+            routineId = routineId,
+            dayId = dayId,
+            exercises = copiedExercises,
+            anchorExerciseId = anchorExerciseId,
+            position = position
+        )
+        routineExerciseClipboard.value = emptyList()
+        return copiedExercises.size
+    }
+    fun moveExercise(routineId: String, dayId: String, routineExerciseId: String, offset: Int) = routineRepository.moveExercise(routineId, dayId, routineExerciseId, offset)
     fun addSet(routineId: String, dayId: String, routineExerciseId: String) = routineRepository.addSet(routineId, dayId, routineExerciseId)
     fun removeSet(routineId: String, dayId: String, routineExerciseId: String, setId: String) = routineRepository.removeSet(routineId, dayId, routineExerciseId, setId)
     fun updateSet(routineId: String, dayId: String, routineExerciseId: String, setId: String, reps: String? = null, weight: String? = null, completed: Boolean? = null) = routineRepository.updateSet(routineId, dayId, routineExerciseId, setId, reps, weight, completed)
@@ -85,7 +118,8 @@ data class GymUiState(
     val routines: List<Routine> = emptyList(),
     val customExercises: List<CustomExercise> = emptyList(),
     val searchQuery: String = "",
-    val selectedCategory: ExerciseCategory = ExerciseCategory.ALL
+    val selectedCategory: ExerciseCategory = ExerciseCategory.ALL,
+    val copiedExercises: List<RoutineExercise> = emptyList()
 ) {
     fun routine(routineId: String): Routine? = routines.firstOrNull { it.id == routineId }
     fun day(routineId: String, dayId: String): WorkoutDay? = routine(routineId)?.days?.firstOrNull { it.id == dayId }

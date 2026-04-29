@@ -1,4 +1,4 @@
-package me.jitish.gymuu.data
+package me.jitish.gymuu.data.exercise
 
 import android.content.Context
 import kotlinx.coroutines.Dispatchers
@@ -47,3 +47,4 @@ class ExerciseRepository(private val context: Context) {
         private const val EXERCISE_ASSET = "exercises-paginated-indexed.json"
     }
 }
+
