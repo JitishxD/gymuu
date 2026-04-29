@@ -125,7 +125,14 @@ internal fun CategoryChip(label: String, selected: Boolean, onClick: () -> Unit)
         border = BorderStroke(1.dp, if (selected) Color.White else GymBorder)
     ) {
         Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(horizontal = 22.dp)) {
-            Text(label, color = if (selected) Color.Black else Color.White, fontSize = 12.sp)
+            Text(
+                text = label,
+                color = if (selected) Color.Black else Color.White,
+                fontSize = 12.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Clip,
+                softWrap = false
+            )
         }
     }
 }

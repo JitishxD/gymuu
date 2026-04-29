@@ -2,33 +2,35 @@ package me.jitish.gymuu.ui.exercise
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
+import kotlinx.coroutines.delay
 import me.jitish.gymuu.data.exercise.Exercise
 import me.jitish.gymuu.data.routine.CustomExercise
 import me.jitish.gymuu.ui.ExerciseCategory
@@ -49,6 +51,7 @@ private sealed interface ExerciseDialogState {
     data class Edit(val exercise: CustomExercise) : ExerciseDialogState
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun SelectExerciseScreen(
     state: GymUiState,
@@ -62,6 +65,8 @@ internal fun SelectExerciseScreen(
     var selectedInfoExercise by remember { mutableStateOf<Exercise?>(null) }
     var selectedCustomInfoExercise by remember { mutableStateOf<CustomExercise?>(null) }
     var visibleBuiltInCount by rememberSaveable(routineId, dayId) { mutableIntStateOf(BUILT_IN_PAGE_SIZE) }
+    var isLoadingMoreBuiltIns by remember { mutableStateOf(false) }
+    val listState = rememberLazyListState()
     val navigateBackToDay = remember(navController, routineId, dayId) {
         {
             navController.navigate(Routes.workout(routineId, dayId)) {
@@ -108,15 +113,48 @@ internal fun SelectExerciseScreen(
     val customExercises = remember(state.customExercises, state.searchQuery, state.selectedCategory) {
         state.filteredCustomExercises()
     }
-    val totalBuiltInCount = remember(state.exercises, state.searchQuery, state.selectedCategory) {
-        state.filteredBuiltInExercises().size
+    val filteredBuiltInExercises = remember(state.exercises, state.searchQuery, state.selectedCategory) {
+        state.filteredBuiltInExercises()
     }
-    val builtInSections = remember(state.exercises, state.searchQuery, state.selectedCategory, visibleBuiltInCount) {
-        state.builtInSections(limit = visibleBuiltInCount)
+    val totalBuiltInCount = filteredBuiltInExercises.size
+    val builtInSectionGroups = remember(filteredBuiltInExercises) {
+        state.builtInSectionGroups(filteredBuiltInExercises)
+    }
+    val builtInSections = remember(builtInSectionGroups, visibleBuiltInCount) {
+        state.visibleBuiltInSections(builtInSectionGroups, visibleBuiltInCount)
+    }
+    val shouldLoadMoreBuiltIns by remember(listState) {
+        derivedStateOf {
+            val layoutInfo = listState.layoutInfo
+            val lastVisibleItemIndex = layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
+
+            layoutInfo.totalItemsCount > 0 &&
+                lastVisibleItemIndex >= layoutInfo.totalItemsCount - INFINITE_SCROLL_PREFETCH_ITEMS
+        }
     }
 
     LaunchedEffect(state.searchQuery, state.selectedCategory) {
+        isLoadingMoreBuiltIns = false
         visibleBuiltInCount = BUILT_IN_PAGE_SIZE
+        listState.scrollToItem(0)
+    }
+
+    LaunchedEffect(
+        shouldLoadMoreBuiltIns,
+        visibleBuiltInCount,
+        totalBuiltInCount,
+        state.searchQuery,
+        state.selectedCategory
+    ) {
+        if (shouldLoadMoreBuiltIns && visibleBuiltInCount < totalBuiltInCount && !isLoadingMoreBuiltIns) {
+            isLoadingMoreBuiltIns = true
+            try {
+                delay(BUILT_IN_LOAD_MORE_BUFFER_MS)
+                visibleBuiltInCount = (visibleBuiltInCount + BUILT_IN_PAGE_SIZE).coerceAtMost(totalBuiltInCount)
+            } finally {
+                isLoadingMoreBuiltIns = false
+            }
+        }
     }
 
     Scaffold(
@@ -128,6 +166,7 @@ internal fun SelectExerciseScreen(
         }
     ) { padding ->
         LazyColumn(
+            state = listState,
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding),
@@ -141,17 +180,17 @@ internal fun SelectExerciseScreen(
                 SearchBox(query = state.searchQuery, onQueryChange = viewModel::onSearchChange)
             }
             item {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    ExerciseCategory.entries.toList().chunked(4).forEach { rowCategories ->
-                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            rowCategories.forEach { category ->
-                                CategoryChip(
-                                    label = category.label,
-                                    selected = state.selectedCategory == category,
-                                    onClick = { viewModel.onCategorySelected(category) }
-                                )
-                            }
-                        }
+                FlowRow(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    ExerciseCategory.entries.forEach { category ->
+                        CategoryChip(
+                            label = category.label,
+                            selected = state.selectedCategory == category,
+                            onClick = { viewModel.onCategorySelected(category) }
+                        )
                     }
                 }
             }
@@ -216,20 +255,19 @@ internal fun SelectExerciseScreen(
                 }
             }
 
-            if (visibleBuiltInCount < totalBuiltInCount) {
-                item {
-                    Button(
-                        onClick = {
-                            visibleBuiltInCount = (visibleBuiltInCount + BUILT_IN_PAGE_SIZE).coerceAtMost(totalBuiltInCount)
-                        },
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = Color.White,
-                            contentColor = Color.Black
-                        ),
-                        shape = RoundedCornerShape(8.dp),
-                        modifier = Modifier.fillMaxWidth()
+            if (isLoadingMoreBuiltIns && visibleBuiltInCount < totalBuiltInCount) {
+                item(key = "built-in-loading") {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp),
+                        contentAlignment = Alignment.Center
                     ) {
-                        Text("LOAD MORE", fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp)
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(28.dp),
+                            color = Color.White,
+                            strokeWidth = 2.dp
+                        )
                     }
                 }
             }
@@ -267,4 +305,5 @@ internal fun SelectExerciseScreen(
 }
 
 private const val BUILT_IN_PAGE_SIZE = 24
-
+private const val INFINITE_SCROLL_PREFETCH_ITEMS = 6
+private const val BUILT_IN_LOAD_MORE_BUFFER_MS = 280L

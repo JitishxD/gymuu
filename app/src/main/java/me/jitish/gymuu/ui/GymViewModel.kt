@@ -140,16 +140,31 @@ data class GymUiState(
         }
     }
 
-    fun builtInSections(limit: Int = Int.MAX_VALUE): Map<ExerciseCategory, List<Exercise>> {
+    fun builtInSectionGroups(filteredExercises: List<Exercise> = filteredBuiltInExercises()): Map<ExerciseCategory, List<Exercise>> {
+        if (selectedCategory != ExerciseCategory.ALL && selectedCategory != ExerciseCategory.CUSTOM) {
+            return if (filteredExercises.isEmpty()) {
+                emptyMap()
+            } else {
+                linkedMapOf(selectedCategory to filteredExercises)
+            }
+        }
+
+        val grouped = filteredExercises
+            .groupBy { exercise -> ExerciseCategory.sectionOrder.firstOrNull { exercise.matchesCategory(it) } ?: ExerciseCategory.CORE }
+
+        return linkedMapOf<ExerciseCategory, List<Exercise>>().apply {
+            ExerciseCategory.sectionOrder.forEach { category ->
+                grouped[category]?.takeIf { it.isNotEmpty() }?.let { put(category, it) }
+            }
+        }
+    }
+
+    fun visibleBuiltInSections(sectionGroups: Map<ExerciseCategory, List<Exercise>>, limit: Int = Int.MAX_VALUE): Map<ExerciseCategory, List<Exercise>> {
         var remaining = limit.coerceAtLeast(0)
         if (remaining == 0) return emptyMap()
 
-        val grouped = filteredBuiltInExercises()
-            .groupBy { exercise -> ExerciseCategory.sectionOrder.firstOrNull { exercise.matchesCategory(it) } ?: ExerciseCategory.CORE }
-            .toSortedMap(compareBy { ExerciseCategory.sectionOrder.indexOf(it).takeIf { index -> index >= 0 } ?: Int.MAX_VALUE })
-
         val visibleSections = linkedMapOf<ExerciseCategory, List<Exercise>>()
-        grouped.forEach { (category, exercises) ->
+        sectionGroups.forEach { (category, exercises) ->
             if (remaining == 0) return@forEach
 
             val visibleExercises = exercises.take(remaining)
@@ -160,6 +175,10 @@ data class GymUiState(
         }
 
         return visibleSections
+    }
+
+    fun builtInSections(limit: Int = Int.MAX_VALUE): Map<ExerciseCategory, List<Exercise>> {
+        return visibleBuiltInSections(builtInSectionGroups(), limit)
     }
 }
 
