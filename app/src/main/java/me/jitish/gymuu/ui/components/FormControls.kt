@@ -80,6 +80,7 @@ internal fun GymInput(
             shape = RoundedCornerShape(10.dp),
             modifier = Modifier
                 .fillMaxWidth()
+                .clearFocusOnKeyboardDismiss()
                 .focusRequester(focusRequester)
         )
         helper?.let { Text(it, color = GymMuted, fontSize = 13.sp) }
@@ -127,6 +128,7 @@ internal fun GymInput(
             shape = RoundedCornerShape(10.dp),
             modifier = Modifier
                 .fillMaxWidth()
+                .clearFocusOnKeyboardDismiss()
                 .focusRequester(focusRequester)
         )
         helper?.let { Text(it, color = GymMuted, fontSize = 13.sp) }
@@ -176,7 +178,9 @@ internal fun InlineEditText(
         onValueChange = onValueChange,
         singleLine = true,
         textStyle = TextStyle(color = textColor, fontSize = 16.sp, fontWeight = FontWeight.Bold),
-        modifier = modifier.width(width),
+        modifier = modifier
+            .width(width)
+            .clearFocusOnKeyboardDismiss(),
         keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
         decorationBox = { inner ->
             Box {

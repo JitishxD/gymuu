@@ -105,7 +105,9 @@ internal fun SearchBox(query: String, onQueryChange: (String) -> Unit) {
             onValueChange = onQueryChange,
             singleLine = true,
             textStyle = TextStyle(color = Color.White, fontSize = 21.sp),
-            modifier = Modifier.weight(1f),
+            modifier = Modifier
+                .weight(1f)
+                .clearFocusOnKeyboardDismiss(),
             decorationBox = { inner ->
                 if (query.isBlank()) Text("Search exercise...", color = Color(0xFF5F5F5F), fontSize = 21.sp)
                 inner()

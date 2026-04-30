@@ -25,6 +25,7 @@ import androidx.compose.ui.unit.sp
 import me.jitish.gymuu.data.routine.WorkoutSet
 import me.jitish.gymuu.ui.components.CompactIconButton
 import me.jitish.gymuu.ui.components.VerticalRule
+import me.jitish.gymuu.ui.components.clearFocusOnKeyboardDismiss
 import me.jitish.gymuu.ui.theme.GymDanger
 import me.jitish.gymuu.ui.theme.GymMuted
 
@@ -77,7 +78,9 @@ private fun SetCell(
                 onValueChange = onValueChange,
                 singleLine = true,
                 textStyle = TextStyle(color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center),
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clearFocusOnKeyboardDismiss(),
                 decorationBox = { inner ->
                     Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxWidth()) {
                         if (value.isBlank()) Text(placeholder, color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
