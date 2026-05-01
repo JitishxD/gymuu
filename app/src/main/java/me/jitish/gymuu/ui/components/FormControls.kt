@@ -167,19 +167,25 @@ internal fun InlineEditText(
     value: String,
     onValueChange: (String) -> Unit,
     modifier: Modifier = Modifier,
-    width: Dp = 110.dp,
+    width: Dp? = 110.dp,
     placeholder: String = "",
     keyboardType: KeyboardType = KeyboardType.Text,
     textColor: Color = Color.White,
-    placeholderColor: Color = GymMuted
+    placeholderColor: Color = GymMuted,
+    singleLine: Boolean = true,
+    minLines: Int = 1,
+    maxLines: Int = if (singleLine) 1 else Int.MAX_VALUE
 ) {
+    val fieldModifier = width?.let { modifier.width(it) } ?: modifier
+
     BasicTextField(
         value = value,
         onValueChange = onValueChange,
-        singleLine = true,
-        textStyle = TextStyle(color = textColor, fontSize = 16.sp, fontWeight = FontWeight.Bold),
-        modifier = modifier
-            .width(width)
+        singleLine = singleLine,
+        minLines = minLines,
+        maxLines = maxLines,
+        textStyle = TextStyle(color = textColor, fontSize = 16.sp, lineHeight = 21.sp, fontWeight = FontWeight.Bold),
+        modifier = fieldModifier
             .clearFocusOnKeyboardDismiss(),
         keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
         decorationBox = { inner ->

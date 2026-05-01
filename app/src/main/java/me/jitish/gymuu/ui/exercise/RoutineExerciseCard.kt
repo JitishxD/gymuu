@@ -293,7 +293,9 @@ internal fun RoutineExerciseCard(
                     value = exercise.notes,
                     onValueChange = { viewModel.updateNotes(routineId, dayId, exercise.id, it) },
                     placeholder = "...",
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.weight(1f),
+                    width = null,
+                    singleLine = false
                 )
             }
         }
