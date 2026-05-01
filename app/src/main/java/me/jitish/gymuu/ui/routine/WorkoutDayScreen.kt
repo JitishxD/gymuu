@@ -1,6 +1,7 @@
 package me.jitish.gymuu.ui.routine
 
 import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -177,6 +178,17 @@ internal fun WorkoutDayScreen(
         } else {
             pasteAnchor = null
         }
+    }
+
+    BackHandler(
+        enabled = bulkToolbarVisible &&
+            drawerState.currentValue == DrawerValue.Closed &&
+            pasteAnchor == null &&
+            dayToRename == null &&
+            selectedInfoExercise == null &&
+            selectedRoutineExerciseInfo == null
+    ) {
+        cancelBulkActions()
     }
 
     LaunchedEffect(routine?.days?.size, dayId) {
