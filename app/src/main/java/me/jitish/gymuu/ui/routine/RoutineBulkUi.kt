@@ -12,6 +12,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.ContentCut
 import androidx.compose.material.icons.filled.ContentPaste
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.SelectAll
@@ -42,6 +43,7 @@ internal fun WorkoutBulkActionBar(
     copiedCount: Int,
     onSelectAll: () -> Unit,
     onCopy: () -> Unit,
+    onCut: () -> Unit,
     onPaste: () -> Unit,
     onDelete: () -> Unit,
     onClear: () -> Unit,
@@ -81,6 +83,9 @@ internal fun WorkoutBulkActionBar(
         }
         CompactIconButton(enabled = hasSelection, onClick = onCopy) {
             Icon(Icons.Default.ContentCopy, contentDescription = "Copy selected exercises", tint = actionTint(hasSelection), modifier = Modifier.size(22.dp))
+        }
+        CompactIconButton(enabled = hasSelection, onClick = onCut) {
+            Icon(Icons.Default.ContentCut, contentDescription = "Cut selected exercises", tint = actionTint(hasSelection), modifier = Modifier.size(22.dp))
         }
         CompactIconButton(enabled = canPaste, onClick = onPaste) {
             Icon(Icons.Default.ContentPaste, contentDescription = "Paste copied exercises", tint = actionTint(canPaste), modifier = Modifier.size(22.dp))
@@ -139,4 +144,3 @@ internal fun PastePlacementDialog(
 private fun actionTint(enabled: Boolean): Color {
     return if (enabled) Color.White else GymMuted.copy(alpha = 0.4f)
 }
-

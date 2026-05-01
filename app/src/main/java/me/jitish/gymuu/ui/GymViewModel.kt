@@ -101,6 +101,9 @@ class GymViewModel(application: Application) : AndroidViewModel(application) {
         routineExerciseClipboard.value = emptyList()
         return copiedExercises.size
     }
+    fun restoreCutExercises(routineId: String, dayId: String, exercises: List<IndexedValue<RoutineExercise>>): Int {
+        return routineRepository.restoreExercisesToDay(routineId, dayId, exercises)
+    }
     fun moveExercise(routineId: String, dayId: String, routineExerciseId: String, offset: Int) = routineRepository.moveExercise(routineId, dayId, routineExerciseId, offset)
     fun addSet(routineId: String, dayId: String, routineExerciseId: String) = routineRepository.addSet(routineId, dayId, routineExerciseId)
     fun removeSet(routineId: String, dayId: String, routineExerciseId: String, setId: String) = routineRepository.removeSet(routineId, dayId, routineExerciseId, setId)

@@ -148,6 +148,32 @@ class RoutineRepository(context: Context) {
         }
     }
 
+    fun restoreExercisesToDay(
+        routineId: String,
+        dayId: String,
+        exercises: List<IndexedValue<RoutineExercise>>
+    ): Int {
+        if (exercises.isEmpty()) return 0
+
+        var restoredCount = 0
+        updateDay(routineId, dayId) { day ->
+            val existingExerciseIds = day.exercises.map { it.id }.toSet()
+            val exercisesToRestore = exercises
+                .filter { it.value.id !in existingExerciseIds }
+                .sortedBy { it.index }
+
+            if (exercisesToRestore.isEmpty()) return@updateDay day
+
+            val updatedExercises = day.exercises.toMutableList()
+            exercisesToRestore.forEach { exercise ->
+                updatedExercises.add(exercise.index.coerceIn(0, updatedExercises.size), exercise.value)
+            }
+            restoredCount = exercisesToRestore.size
+            day.copy(exercises = updatedExercises)
+        }
+        return restoredCount
+    }
+
     fun moveExercise(routineId: String, dayId: String, routineExerciseId: String, offset: Int) {
         if (offset == 0) return
 
@@ -303,7 +329,6 @@ class RoutineRepository(context: Context) {
         return when (position) {
             RoutineExercisePastePosition.BEFORE -> anchorIndex
             RoutineExercisePastePosition.AFTER -> anchorIndex + 1
-            RoutineExercisePastePosition.END -> exercises.size
         }.coerceIn(0, exercises.size)
     }
 

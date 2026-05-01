@@ -64,6 +64,7 @@ internal fun WorkoutDayScreen(
     var selectedExerciseIds by rememberSaveable(routineId, dayId) { mutableStateOf(emptyList<String>()) }
     var bulkSelectionDayId by rememberSaveable(routineId, dayId) { mutableStateOf<String?>(null) }
     var pasteAnchor by remember { mutableStateOf<PasteAnchor?>(null) }
+    var pendingCut by remember { mutableStateOf<PendingExerciseCut?>(null) }
     val days = routine?.days.orEmpty()
     val exercisesById = remember(state.exercises) { state.exercises.associateBy { it.exerciseId } }
     val routeDayIndex = days.indexOfFirst { it.id == dayId }.takeIf { it >= 0 } ?: 0
@@ -86,9 +87,16 @@ internal fun WorkoutDayScreen(
     }
 
     fun cancelBulkActions() {
+        val restoredCount = pendingCut?.let { cut ->
+            viewModel.restoreCutExercises(cut.routineId, cut.dayId, cut.exercises)
+        } ?: 0
         closeBulkSelection()
         pasteAnchor = null
+        pendingCut = null
         viewModel.clearCopiedExercises()
+        if (restoredCount > 0) {
+            Toast.makeText(context, "Cut reversed.", Toast.LENGTH_SHORT).show()
+        }
     }
 
     fun enterBulkSelection(day: WorkoutDay, exerciseId: String) {
@@ -102,8 +110,26 @@ internal fun WorkoutDayScreen(
 
     fun copySelectedExercises() {
         if (selectedExercises.isEmpty()) return
+        pendingCut = null
         viewModel.copyExercises(selectedExercises)
         Toast.makeText(context, "Copied ${selectedExercises.size} exercises.", Toast.LENGTH_SHORT).show()
+        closeBulkSelection()
+    }
+
+    fun cutSelectedExercises() {
+        val targetRoutine = routine ?: return
+        val targetDay = activeDay ?: return
+        val selectedIds = selectedExercises.map { it.id }.toSet()
+        if (selectedIds.isEmpty()) return
+        val cutExercises = targetDay.exercises.mapIndexedNotNull { index, exercise ->
+            if (exercise.id in selectedIds) IndexedValue(index, exercise) else null
+        }
+        if (cutExercises.isEmpty()) return
+
+        pendingCut = PendingExerciseCut(targetRoutine.id, targetDay.id, cutExercises)
+        viewModel.copyExercises(cutExercises.map { it.value })
+        viewModel.removeExercises(targetRoutine.id, targetDay.id, selectedIds)
+        Toast.makeText(context, "Cut ${selectedIds.size} exercises.", Toast.LENGTH_SHORT).show()
         closeBulkSelection()
     }
 
@@ -117,6 +143,7 @@ internal fun WorkoutDayScreen(
             position = position
         )
         if (pastedCount > 0) {
+            pendingCut = null
             Toast.makeText(context, "Pasted $pastedCount exercises.", Toast.LENGTH_SHORT).show()
             closeBulkSelection()
             pasteAnchor = null
@@ -142,6 +169,14 @@ internal fun WorkoutDayScreen(
             exerciseId = exercise.id,
             exerciseName = exercise.name
         )
+    }
+
+    fun dismissPastePlacement() {
+        if (pendingCut != null) {
+            cancelBulkActions()
+        } else {
+            pasteAnchor = null
+        }
     }
 
     LaunchedEffect(routine?.days?.size, dayId) {
@@ -252,6 +287,7 @@ internal fun WorkoutDayScreen(
                                 selectedExerciseIds = selectAllOrClearExerciseIds(activeDay, selectedExercises.size)
                             },
                             onCopy = ::copySelectedExercises,
+                            onCut = ::cutSelectedExercises,
                             onPaste = { pasteCopiedExercises() },
                             onDelete = ::deleteSelectedExercises,
                             onClear = ::cancelBulkActions,
@@ -355,7 +391,7 @@ internal fun WorkoutDayScreen(
         PastePlacementDialog(
             anchor = anchor,
             copiedCount = copiedExercisesCount,
-            onDismiss = { pasteAnchor = null },
+            onDismiss = ::dismissPastePlacement,
             onPasteBefore = { pasteCopiedExercises(anchor, RoutineExercisePastePosition.BEFORE) },
             onPasteAfter = { pasteCopiedExercises(anchor, RoutineExercisePastePosition.AFTER) }
         )

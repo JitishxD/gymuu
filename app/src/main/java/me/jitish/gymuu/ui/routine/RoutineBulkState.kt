@@ -10,6 +10,12 @@ internal data class PasteAnchor(
     val exerciseName: String
 )
 
+internal data class PendingExerciseCut(
+    val routineId: String,
+    val dayId: String,
+    val exercises: List<IndexedValue<RoutineExercise>>
+)
+
 internal fun selectedRoutineExercises(day: WorkoutDay?, selectedExerciseIds: Collection<String>): List<RoutineExercise> {
     val selectedIds = selectedExerciseIds.toSet()
     return day?.exercises.orEmpty().filter { it.id in selectedIds }
