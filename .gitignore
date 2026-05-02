@@ -15,6 +15,7 @@
 
 .gradle-home
 .gradle-user
+.gradle-user-home/
 .gradle-home-codex-verify
 
 # ===== Android / Gradle / Jetpack Compose =====

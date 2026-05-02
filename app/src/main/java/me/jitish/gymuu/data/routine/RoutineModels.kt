@@ -17,6 +17,7 @@ data class RoutineExercise(
     val exerciseId: String? = null,
     val name: String = "",
     val gifUrl: String? = null,
+    val mediaMimeType: String? = null,
     val sets: List<WorkoutSet> = emptyList(),
     val rest: String = "2:00",
     val notes: String = "",
@@ -48,6 +49,8 @@ data class CustomExercise(
     val sets: Int = 3,
     val reps: String = "10",
     val rest: String = "1:30",
+    val mediaUrl: String? = null,
+    val mediaMimeType: String? = null,
     val source: ExerciseSource = ExerciseSource.CUSTOM
 )
 
@@ -56,6 +59,8 @@ data class CreateExerciseDraft(
     val name: String = "",
     val sets: Int = 3,
     val reps: String = "",
-    val rest: String = ""
+    val rest: String = "",
+    val mediaUrl: String? = null,
+    val mediaMimeType: String? = null
 )
 

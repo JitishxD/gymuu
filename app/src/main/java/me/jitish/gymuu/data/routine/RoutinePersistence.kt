@@ -105,6 +105,7 @@ internal class RoutinePersistence(
                             exerciseId = exercise.exerciseId,
                             name = exercise.name.safeString().ifBlank { "Exercise" },
                             gifUrl = exercise.gifUrl,
+                            mediaMimeType = exercise.mediaMimeType.safeString().takeIf { it.isNotBlank() },
                             sets = sets,
                             rest = exercise.rest.safeString(),
                             notes = exercise.notes.safeString(),
@@ -141,6 +142,8 @@ internal class RoutinePersistence(
                 sets = exercise.sets.coerceIn(1, 10),
                 reps = exercise.reps.safeString().ifBlank { "10" },
                 rest = normalizeRest(exercise.rest.safeString()),
+                mediaUrl = exercise.mediaUrl.safeString().trim().takeIf { it.isNotBlank() },
+                mediaMimeType = exercise.mediaMimeType.safeString().trim().takeIf { it.isNotBlank() },
                 source = ExerciseSource.CUSTOM
             )
         }
@@ -188,6 +191,8 @@ internal class RoutinePersistence(
                 sets = exercise.sets.coerceIn(1, 10),
                 reps = exercise.reps.trim().ifBlank { "10" },
                 rest = normalizeRest(exercise.rest),
+                mediaUrl = exercise.mediaUrl?.trim()?.takeIf { it.isNotBlank() },
+                mediaMimeType = exercise.mediaMimeType?.trim()?.takeIf { it.isNotBlank() },
                 source = ExerciseSource.CUSTOM
             )
             val signature = sanitizedExercise.customSignature()
@@ -244,7 +249,9 @@ internal class RoutinePersistence(
             name.trim().lowercase(),
             sets.coerceIn(1, 10).toString(),
             reps.trim(),
-            normalizeRest(rest)
+            normalizeRest(rest),
+            mediaUrl.orEmpty().trim(),
+            mediaMimeType.orEmpty().trim().lowercase()
         ).joinToString("|")
     }
 
@@ -291,6 +298,7 @@ internal class RoutinePersistence(
             exerciseId = exerciseId?.takeIf { it.isNotBlank() },
             name = name.orEmpty().ifBlank { "Exercise" },
             gifUrl = gifUrl?.takeIf { it.isNotBlank() },
+            mediaMimeType = mediaMimeType?.takeIf { it.isNotBlank() },
             sets = parsedSets,
             rest = normalizeRest(rest.orEmpty().ifBlank { "2:00" }),
             notes = notes.orEmpty(),
@@ -315,6 +323,8 @@ internal class RoutinePersistence(
             sets = (sets ?: 3).coerceIn(1, 10),
             reps = reps.orEmpty().ifBlank { "10" },
             rest = normalizeRest(rest.orEmpty()),
+            mediaUrl = mediaUrl?.trim()?.takeIf { it.isNotBlank() },
+            mediaMimeType = mediaMimeType?.trim()?.takeIf { it.isNotBlank() },
             source = ExerciseSource.CUSTOM
         )
     }
@@ -332,6 +342,8 @@ internal class RoutinePersistence(
             sets = sets.size.coerceIn(1, 10),
             reps = repsValue,
             rest = normalizeRest(rest),
+            mediaUrl = gifUrl?.takeIf { it.isNotBlank() },
+            mediaMimeType = mediaMimeType?.takeIf { it.isNotBlank() },
             source = ExerciseSource.CUSTOM
         )
     }

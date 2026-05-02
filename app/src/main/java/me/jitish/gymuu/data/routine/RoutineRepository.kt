@@ -72,6 +72,7 @@ class RoutineRepository(context: Context) {
             exerciseId = exercise.exerciseId,
             name = exercise.name,
             gifUrl = exercise.gifUrl,
+            mediaMimeType = "image/gif",
             sets = defaultSets(count = 3, reps = "8-12", newId = ::newId),
             rest = "2:00",
             source = ExerciseSource.BUILT_IN
@@ -85,7 +86,8 @@ class RoutineRepository(context: Context) {
             id = newId(),
             exerciseId = exercise.id,
             name = exercise.name,
-            gifUrl = null,
+            gifUrl = exercise.mediaUrl,
+            mediaMimeType = exercise.mediaMimeType,
             sets = defaultSets(count = exercise.sets, reps = reps, newId = ::newId),
             rest = normalizeRest(exercise.rest),
             source = ExerciseSource.CUSTOM
@@ -99,6 +101,7 @@ class RoutineRepository(context: Context) {
                 exerciseId = exercise.exerciseId,
                 name = exercise.name,
                 gifUrl = exercise.gifUrl,
+                mediaMimeType = "image/gif",
                 source = ExerciseSource.BUILT_IN
             )
         }
@@ -109,7 +112,8 @@ class RoutineRepository(context: Context) {
             current.copy(
                 exerciseId = exercise.id,
                 name = exercise.name,
-                gifUrl = null,
+                gifUrl = exercise.mediaUrl,
+                mediaMimeType = exercise.mediaMimeType,
                 source = ExerciseSource.CUSTOM
             )
         }
@@ -251,17 +255,33 @@ class RoutineRepository(context: Context) {
             name = draft.name.trim(),
             sets = draft.sets.coerceIn(1, 10),
             reps = draft.reps.trim().ifBlank { "10" },
-            rest = normalizeRest(draft.rest)
+            rest = normalizeRest(draft.rest),
+            mediaUrl = draft.mediaUrl?.trim()?.takeIf { it.isNotBlank() },
+            mediaMimeType = draft.mediaMimeType?.trim()?.takeIf { it.isNotBlank() }
         )
         if (exercise.name.isBlank()) return
 
         val existing = _customExercises.value
+        val previousExercise = draft.id?.let { id -> existing.firstOrNull { it.id == id } }
         val updated = if (draft.id == null) {
             existing + exercise
         } else {
             existing.map { if (it.id == draft.id) exercise else it }
         }
-        updateCustomExercises(updated)
+
+        val sanitizedCustomExercises = persistence.sanitizeCustomExercises(updated)
+        val savedExercise = sanitizedCustomExercises.firstOrNull { it.id == exercise.id } ?: return
+        val sanitizedRoutines = persistence.sanitizeRoutines(
+            if (previousExercise == null) {
+                _routines.value
+            } else {
+                _routines.value.syncCustomExercise(previousExercise, savedExercise)
+            }
+        )
+
+        _customExercises.value = sanitizedCustomExercises
+        _routines.value = sanitizedRoutines
+        persistence.persistState(routines = sanitizedRoutines, customExercises = sanitizedCustomExercises)
     }
 
     fun deleteCustomExercise(exerciseId: String) {
@@ -330,6 +350,47 @@ class RoutineRepository(context: Context) {
             RoutineExercisePastePosition.BEFORE -> anchorIndex
             RoutineExercisePastePosition.AFTER -> anchorIndex + 1
         }.coerceIn(0, exercises.size)
+    }
+
+    private fun List<Routine>.syncCustomExercise(previous: CustomExercise, updated: CustomExercise): List<Routine> {
+        return map { routine ->
+            routine.copy(
+                days = routine.days.map { day ->
+                    day.copy(
+                        exercises = day.exercises.map { exercise ->
+                            exercise.syncCustomExercise(previous, updated)
+                        }
+                    )
+                }
+            )
+        }
+    }
+
+    private fun RoutineExercise.syncCustomExercise(previous: CustomExercise, updated: CustomExercise): RoutineExercise {
+        if (source != ExerciseSource.CUSTOM || exerciseId != updated.id) return this
+
+        val previousReps = previous.reps.ifBlank { "10" }
+        val updatedReps = updated.reps.ifBlank { "10" }
+        val setsStillMatchPreviousDefaults = sets.size == previous.sets.coerceIn(1, 10) &&
+            sets.all { set -> set.reps == previousReps && set.weight.isBlank() && !set.completed }
+        val syncedSets = if (setsStillMatchPreviousDefaults) {
+            List(updated.sets.coerceIn(1, 10)) { index ->
+                sets.getOrNull(index)?.copy(setNo = index + 1, reps = updatedReps, completed = false)
+                    ?: WorkoutSet(id = newId(), setNo = index + 1, reps = updatedReps)
+            }
+        } else {
+            sets
+        }
+
+        val syncedRest = if (rest == normalizeRest(previous.rest)) normalizeRest(updated.rest) else rest
+
+        return copy(
+            name = updated.name,
+            gifUrl = updated.mediaUrl,
+            mediaMimeType = updated.mediaMimeType,
+            sets = syncedSets,
+            rest = syncedRest
+        )
     }
 
     private fun updateExercise(routineId: String, dayId: String, routineExerciseId: String, transform: (RoutineExercise) -> RoutineExercise) {

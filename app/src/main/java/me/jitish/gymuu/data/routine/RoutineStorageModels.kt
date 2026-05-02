@@ -65,6 +65,7 @@ internal data class StoredRoutineExercise(
     @SerializedName("exerciseId") val exerciseId: String? = null,
     @SerializedName("name") val name: String? = null,
     @SerializedName("gifUrl") val gifUrl: String? = null,
+    @SerializedName("mediaMimeType") val mediaMimeType: String? = null,
     @SerializedName("sets") val sets: List<StoredWorkoutSet?>? = null,
     @SerializedName("rest") val rest: String? = null,
     @SerializedName("notes") val notes: String? = null,
@@ -77,6 +78,7 @@ internal data class StoredRoutineExercise(
                 exerciseId = exercise.exerciseId,
                 name = exercise.name,
                 gifUrl = exercise.gifUrl,
+                mediaMimeType = exercise.mediaMimeType,
                 sets = exercise.sets.map(StoredWorkoutSet::fromDomain),
                 rest = exercise.rest,
                 notes = exercise.notes,
@@ -113,7 +115,9 @@ internal data class StoredCustomExercise(
     @SerializedName("name") val name: String? = null,
     @SerializedName("sets") val sets: Int? = null,
     @SerializedName("reps") val reps: String? = null,
-    @SerializedName("rest") val rest: String? = null
+    @SerializedName("rest") val rest: String? = null,
+    @SerializedName("mediaUrl") val mediaUrl: String? = null,
+    @SerializedName("mediaMimeType") val mediaMimeType: String? = null
 ) {
     companion object {
         fun fromDomain(exercise: CustomExercise): StoredCustomExercise {
@@ -122,7 +126,9 @@ internal data class StoredCustomExercise(
                 name = exercise.name,
                 sets = exercise.sets,
                 reps = exercise.reps,
-                rest = exercise.rest
+                rest = exercise.rest,
+                mediaUrl = exercise.mediaUrl,
+                mediaMimeType = exercise.mediaMimeType
             )
         }
     }

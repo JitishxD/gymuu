@@ -43,12 +43,13 @@ import me.jitish.gymuu.ui.theme.GymMuted
 internal fun ExerciseListCard(exercise: Exercise, selected: Boolean, onClick: () -> Unit, onLongClick: (() -> Unit)? = null) {
     SelectableCard(selected = selected, onClick = onClick, onLongClick = onLongClick) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            GifPreview(
+            ExerciseMediaPreview(
                 url = exercise.gifUrl,
                 modifier = Modifier
                     .size(76.dp)
                     .clip(RoundedCornerShape(6.dp))
-                    .background(Color.White)
+                    .background(Color.White),
+                showVideoControls = false
             )
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(exercise.name.toTitleCase(), color = Color.White, fontSize = 22.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
@@ -69,6 +70,17 @@ internal fun ExerciseListCard(exercise: Exercise, selected: Boolean, onClick: ()
 internal fun CustomExerciseCard(exercise: CustomExercise, selected: Boolean, onClick: () -> Unit, onEdit: () -> Unit, onDelete: () -> Unit, onLongClick: (() -> Unit)? = null) {
     SelectableCard(selected = selected, onClick = onClick, onLongClick = onLongClick) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            exercise.mediaUrl?.takeIf { it.isNotBlank() }?.let { mediaUrl ->
+                ExerciseMediaPreview(
+                    url = mediaUrl,
+                    mimeType = exercise.mediaMimeType,
+                    modifier = Modifier
+                        .size(76.dp)
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(Color.White),
+                    showVideoControls = false
+                )
+            }
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(exercise.name, color = Color.White, fontSize = 22.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 Text("${exercise.sets} sets x ${exercise.reps} reps", color = GymMuted, fontSize = 15.sp)

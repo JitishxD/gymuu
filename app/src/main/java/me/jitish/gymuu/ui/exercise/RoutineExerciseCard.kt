@@ -20,6 +20,7 @@ import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.NoteAlt
+import androidx.compose.material.icons.filled.OpenInFull
 import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material3.Card
@@ -30,9 +31,11 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -45,11 +48,13 @@ import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import me.jitish.gymuu.data.routine.ExerciseSource
 import me.jitish.gymuu.data.routine.RoutineExercise
 import me.jitish.gymuu.ui.GymViewModel
 import me.jitish.gymuu.ui.components.CompactIconButton
 import me.jitish.gymuu.ui.components.InlineEditText
 import me.jitish.gymuu.ui.theme.GymBorder
+import me.jitish.gymuu.ui.theme.GymBlack
 import me.jitish.gymuu.ui.theme.GymCard
 import me.jitish.gymuu.ui.theme.GymDanger
 import me.jitish.gymuu.ui.theme.GymMuted
@@ -73,7 +78,9 @@ internal fun RoutineExerciseCard(
     canMoveUp: Boolean,
     canMoveDown: Boolean,
     onMoveUp: () -> Unit,
-    onMoveDown: () -> Unit
+    onMoveDown: () -> Unit,
+    mediaResetKey: Any? = null,
+    mediaActive: Boolean = false
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
@@ -82,6 +89,9 @@ internal fun RoutineExerciseCard(
     val remainingRestSeconds = remember(exercise.id) { mutableStateOf(0) }
     val restTimerJob = remember(exercise.id) { mutableStateOf<Job?>(null) }
     val normalizedRestValue = remember(exercise.id) { mutableStateOf<String?>(null) }
+    val mediaUrl = exercise.gifUrl?.takeIf { it.isNotBlank() }
+    var fullscreenMediaUrl by remember(exercise.id, mediaUrl) { mutableStateOf<String?>(null) }
+    val cardMediaResetKey = mediaResetKey to (fullscreenMediaUrl != null)
 
     fun restoreNormalizedRestValue() {
         normalizedRestValue.value?.let { normalized ->
@@ -221,20 +231,43 @@ internal fun RoutineExerciseCard(
                 }
             }
 
-            if (!exercise.gifUrl.isNullOrBlank()) {
+            if (mediaUrl != null) {
+                val customMedia = exercise.source == ExerciseSource.CUSTOM
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(8.dp))
-                        .background(Color.White)
-                        .padding(6.dp)
+                        .background(if (customMedia) GymBlack else Color.White)
+                        .padding(if (customMedia) 10.dp else 6.dp),
+                    contentAlignment = Alignment.Center
                 ) {
-                    GifPreview(
-                        url = exercise.gifUrl,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .aspectRatio(1.72f)
+                    ExerciseMediaPreview(
+                        url = mediaUrl,
+                        mimeType = exercise.mediaMimeType,
+                        modifier = if (customMedia) {
+                            Modifier
+                                .fillMaxWidth(0.78f)
+                                .aspectRatio(1f)
+                        } else {
+                            Modifier
+                                .fillMaxWidth()
+                                .aspectRatio(1.72f)
+                        },
+                        resetKey = cardMediaResetKey,
+                        playWhenActive = customMedia,
+                        mediaActive = mediaActive && fullscreenMediaUrl == null
                     )
+                    if (showActions) {
+                        CompactIconButton(
+                            onClick = { fullscreenMediaUrl = mediaUrl },
+                            modifier = Modifier
+                                .align(Alignment.TopEnd)
+                                .padding(8.dp)
+                                .background(Color.Black.copy(alpha = 0.55f), RoundedCornerShape(6.dp))
+                        ) {
+                            Icon(Icons.Default.OpenInFull, contentDescription = "Open media fullscreen", tint = Color.White, modifier = Modifier.size(20.dp))
+                        }
+                    }
                 }
             }
 
@@ -299,6 +332,14 @@ internal fun RoutineExerciseCard(
                 )
             }
         }
+    }
+
+    fullscreenMediaUrl?.let { url ->
+        ExerciseMediaFullscreenDialog(
+            url = url,
+            mimeType = exercise.mediaMimeType,
+            onDismiss = { fullscreenMediaUrl = null }
+        )
     }
 }
 

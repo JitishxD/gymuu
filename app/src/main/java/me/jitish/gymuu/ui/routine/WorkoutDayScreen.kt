@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material3.DrawerValue
@@ -18,6 +19,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -316,7 +318,25 @@ internal fun WorkoutDayScreen(
                     ) { page ->
                         val day = days[page]
                         val exercises = day.exercises
+                        val listState = rememberLazyListState()
+                        val pageActive = page == pagerState.currentPage
+                        val autoplayExerciseIds by remember(listState) {
+                            derivedStateOf {
+                                listState.layoutInfo.visibleItemsInfo
+                                    .mapNotNull { item ->
+                                        val exerciseId = item.key as? String ?: return@mapNotNull null
+                                        val visibleStart = maxOf(item.offset, listState.layoutInfo.viewportStartOffset)
+                                        val visibleEnd = minOf(item.offset + item.size, listState.layoutInfo.viewportEndOffset)
+                                        val visiblePixels = (visibleEnd - visibleStart).coerceAtLeast(0)
+                                        val visibleFraction = visiblePixels.toFloat() / item.size.coerceAtLeast(1)
+
+                                        exerciseId.takeIf { visibleFraction >= MEDIA_AUTOPLAY_VISIBLE_FRACTION }
+                                    }
+                                    .toSet()
+                            }
+                        }
                         LazyColumn(
+                            state = listState,
                             modifier = Modifier.fillMaxSize(),
                             contentPadding = PaddingValues(start = 14.dp, end = 14.dp, top = 18.dp, bottom = 96.dp),
                             verticalArrangement = Arrangement.spacedBy(22.dp)
@@ -325,6 +345,7 @@ internal fun WorkoutDayScreen(
                                 item { EmptyState("Add exercises to build this workout") }
                             } else {
                                 itemsIndexed(exercises, key = { _, item -> item.id }) { index, exercise ->
+                                    val mediaActive = pageActive && exercise.id in autoplayExerciseIds
                                     RoutineExerciseCard(
                                         index = index + 1,
                                         routineId = routine.id,
@@ -361,7 +382,9 @@ internal fun WorkoutDayScreen(
                                         canMoveUp = index > 0,
                                         canMoveDown = index < exercises.lastIndex,
                                         onMoveUp = { viewModel.moveExercise(routine.id, day.id, exercise.id, -1) },
-                                        onMoveDown = { viewModel.moveExercise(routine.id, day.id, exercise.id, 1) }
+                                        onMoveDown = { viewModel.moveExercise(routine.id, day.id, exercise.id, 1) },
+                                        mediaResetKey = activeDay.id,
+                                        mediaActive = mediaActive
                                     )
                                 }
                             }
@@ -410,3 +433,4 @@ internal fun WorkoutDayScreen(
     }
 }
 
+private const val MEDIA_AUTOPLAY_VISIBLE_FRACTION = 0.6f
