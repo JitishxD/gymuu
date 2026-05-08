@@ -52,12 +52,11 @@ internal class RestTimerNotifier(context: Context) {
             .setCustomHeadsUpContentView(notificationLayout)
             .setContentIntent(openAppIntent())
             .setCategory(NotificationCompat.CATEGORY_PROGRESS)
-            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             .setColor(REST_NOTIFICATION_COLOR)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
-            .setSilent(true)
             .setShowWhen(false)
             .build()
 
@@ -125,9 +124,8 @@ internal class RestTimerNotifier(context: Context) {
     fun scheduleTimerComplete(timer: RestTimerState) {
         RestTimerAlarmStore.saveTimer(appContext, timer)
 
-        val pendingIntent = timerActionIntent(
+        val pendingIntent = timerCompletePendingIntent(
             routineExerciseId = timer.routineExerciseId,
-            action = ACTION_TIMER_COMPLETE,
             flags = PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         ) ?: return
 
@@ -144,9 +142,8 @@ internal class RestTimerNotifier(context: Context) {
 
     fun cancelScheduledTimer(routineExerciseId: String) {
         val pendingIntent =
-            timerActionIntent(
+            timerCompletePendingIntent(
                 routineExerciseId = routineExerciseId,
-                action = ACTION_TIMER_COMPLETE,
                 flags = PendingIntent.FLAG_NO_CREATE or PendingIntent.FLAG_IMMUTABLE
             )
         if (pendingIntent != null) {
@@ -159,7 +156,7 @@ internal class RestTimerNotifier(context: Context) {
         val runningChannel = NotificationChannel(
             RUNNING_CHANNEL_ID,
             "Rest timer",
-            NotificationManager.IMPORTANCE_LOW
+            NotificationManager.IMPORTANCE_DEFAULT
         ).apply {
             description = "Shows active rest countdowns while Gymuu is in the background."
             setSound(null, null)
@@ -194,14 +191,14 @@ internal class RestTimerNotifier(context: Context) {
         )
     }
 
-    private fun timerActionIntent(routineExerciseId: String, action: String, flags: Int): PendingIntent? {
+    private fun timerCompletePendingIntent(routineExerciseId: String, flags: Int): PendingIntent? {
         val intent = Intent(appContext, RestTimerCompleteReceiver::class.java).apply {
-            this.action = action
+            action = ACTION_TIMER_COMPLETE
             putExtra(EXTRA_ROUTINE_EXERCISE_ID, routineExerciseId)
         }
         return PendingIntent.getBroadcast(
             appContext,
-            "$action:$routineExerciseId".notificationRequestCode(),
+            "$ACTION_TIMER_COMPLETE:$routineExerciseId".notificationRequestCode(),
             intent,
             flags
         )
@@ -265,8 +262,8 @@ internal class RestTimerNotifier(context: Context) {
         const val EXTRA_ROUTINE_EXERCISE_ID = "me.jitish.gymuu.extra.ROUTINE_EXERCISE_ID"
         const val ACTION_TIMER_COMPLETE = "me.jitish.gymuu.action.REST_TIMER_COMPLETE"
 
-        private const val RUNNING_CHANNEL_ID = "rest_timer_running"
-        private const val COMPLETE_CHANNEL_ID = "rest_timer_complete_v3"
+        private const val RUNNING_CHANNEL_ID = "rest_timer_running_lockscreen"
+        private const val COMPLETE_CHANNEL_ID = "rest_timer_complete"
         private const val OPEN_APP_REQUEST_CODE = 2101
         private const val REST_NOTIFICATION_COLOR = 0xFF4CAF50.toInt()
         private const val RUNNING_NOTIFICATION_ID_BASE = 7_000
