@@ -1,13 +1,19 @@
 package me.jitish.gymuu.ui
 
 import android.app.Application
+import android.content.Context
+import android.os.SystemClock
+import androidx.core.content.edit
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import me.jitish.gymuu.data.exercise.Exercise
 import me.jitish.gymuu.data.exercise.ExerciseRepository
@@ -18,14 +24,25 @@ import me.jitish.gymuu.data.routine.RoutineExercise
 import me.jitish.gymuu.data.routine.RoutineExercisePastePosition
 import me.jitish.gymuu.data.routine.RoutineRepository
 import me.jitish.gymuu.data.routine.WorkoutDay
+import me.jitish.gymuu.ui.exercise.RestTimerAlarmStore
+import me.jitish.gymuu.ui.exercise.RestTimerNotifier
+import me.jitish.gymuu.ui.exercise.formatRestCountdown
+import me.jitish.gymuu.ui.exercise.parseRestTimeToSeconds
+import me.jitish.gymuu.ui.exercise.triggerRestCompleteVibration
 
 class GymViewModel(application: Application) : AndroidViewModel(application) {
     private val exerciseRepository = ExerciseRepository(application)
     private val routineRepository = RoutineRepository(application)
+    private val navigationPrefs = application.getSharedPreferences(NAVIGATION_PREFS_NAME, Context.MODE_PRIVATE)
 
     private val searchQuery = MutableStateFlow("")
     private val selectedCategory = MutableStateFlow(ExerciseCategory.ALL)
     private val routineExerciseClipboard = MutableStateFlow<List<RoutineExercise>>(emptyList())
+    private val lastWorkoutRoute = MutableStateFlow(loadLastWorkoutRoute())
+    private val restTimerNotifier = RestTimerNotifier(application)
+    private val restTimerJobs = mutableMapOf<String, Job>()
+    private val _restTimers = MutableStateFlow<Map<String, RestTimerState>>(emptyMap())
+    private val appInForeground = MutableStateFlow(false)
 
     val uiState: StateFlow<GymUiState> = combine(
         combine(
@@ -43,9 +60,15 @@ class GymViewModel(application: Application) : AndroidViewModel(application) {
                 selectedCategory = category
             )
         },
-        routineExerciseClipboard
-    ) { state, copiedExercises ->
-        state.copy(copiedExercises = copiedExercises)
+        routineExerciseClipboard,
+        _restTimers,
+        lastWorkoutRoute
+    ) { state, copiedExercises, restTimers, savedRoute ->
+        state.copy(
+            copiedExercises = copiedExercises,
+            restTimers = restTimers,
+            lastWorkoutRoute = savedRoute
+        )
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5_000),
@@ -53,8 +76,173 @@ class GymViewModel(application: Application) : AndroidViewModel(application) {
     )
 
     init {
+        restoreScheduledRestTimers()
         viewModelScope.launch {
             exerciseRepository.loadExercises()
+        }
+    }
+
+    fun onAppForegroundChanged(inForeground: Boolean) {
+        RestTimerAlarmStore.setAppForeground(getApplication(), inForeground)
+        if (appInForeground.value == inForeground) return
+
+        appInForeground.value = inForeground
+        val timers = _restTimers.value.values
+        if (inForeground) {
+            timers.forEach(restTimerNotifier::cancelRunningTimer)
+        } else {
+            timers.forEach(restTimerNotifier::showRunningTimer)
+        }
+    }
+
+    fun rememberLastWorkout(routineId: String, dayId: String) {
+        if (routineId.isBlank() || dayId.isBlank()) return
+
+        val route = LastWorkoutRoute(routineId = routineId, dayId = dayId)
+        if (lastWorkoutRoute.value == route) return
+
+        navigationPrefs.edit {
+            putString(LAST_ROUTINE_ID_KEY, route.routineId)
+            putString(LAST_DAY_ID_KEY, route.dayId)
+        }
+        lastWorkoutRoute.value = route
+    }
+
+    fun startRestTimer(routineId: String, dayId: String, exercise: RoutineExercise) {
+        val totalRestSeconds = parseRestTimeToSeconds(exercise.rest)
+        if (totalRestSeconds <= 0) return
+
+        val correctedRest = formatRestCountdown(totalRestSeconds)
+        routineRepository.updateRest(routineId, dayId, exercise.id, correctedRest)
+
+        val timer = RestTimerState(
+            routineId = routineId,
+            dayId = dayId,
+            routineExerciseId = exercise.id,
+            exerciseName = exercise.name,
+            totalSeconds = totalRestSeconds,
+            remainingSeconds = totalRestSeconds,
+            endElapsedRealtimeMillis = SystemClock.elapsedRealtime() + totalRestSeconds * 1_000L,
+            endWallClockMillis = System.currentTimeMillis() + totalRestSeconds * 1_000L
+        )
+
+        restTimerJobs.remove(exercise.id)?.cancel()
+        _restTimers.update { timers -> timers + (exercise.id to timer) }
+        restTimerNotifier.cancelTimerComplete(timer)
+        restTimerNotifier.scheduleTimerComplete(timer)
+        if (!appInForeground.value) {
+            restTimerNotifier.showRunningTimer(timer)
+        }
+
+        launchRestTimerJob(timer)
+    }
+
+    private fun launchRestTimerJob(timer: RestTimerState) {
+        restTimerJobs[timer.routineExerciseId] = viewModelScope.launch {
+            while (true) {
+                delay(1_000L)
+
+                val currentTimer = _restTimers.value[timer.routineExerciseId] ?: return@launch
+                if (RestTimerAlarmStore.loadTimer(getApplication(), timer.routineExerciseId) == null) {
+                    restTimerJobs.remove(timer.routineExerciseId)
+                    _restTimers.update { timers -> timers - timer.routineExerciseId }
+                    restTimerNotifier.cancelRunningTimer(timer.routineExerciseId)
+                    return@launch
+                }
+
+                val remaining = remainingRestSeconds(currentTimer.endElapsedRealtimeMillis)
+                if (remaining <= 0) {
+                    finishRestTimer(timer.routineExerciseId)
+                    return@launch
+                }
+
+                val updatedTimer = currentTimer.copy(remainingSeconds = remaining)
+                _restTimers.update { timers ->
+                    if (timers[timer.routineExerciseId]?.endElapsedRealtimeMillis == currentTimer.endElapsedRealtimeMillis) {
+                        timers + (timer.routineExerciseId to updatedTimer)
+                    } else {
+                        timers
+                    }
+                }
+                if (!appInForeground.value) {
+                    restTimerNotifier.showRunningTimer(updatedTimer)
+                }
+            }
+        }
+    }
+
+    fun cancelRestTimer(routineExerciseId: String) {
+        restTimerJobs.remove(routineExerciseId)?.cancel()
+        val timer = _restTimers.value[routineExerciseId]
+        _restTimers.update { timers -> timers - routineExerciseId }
+        if (timer != null) {
+            restTimerNotifier.cancelScheduledTimer(timer)
+            restTimerNotifier.cancelRunningTimer(timer)
+            restTimerNotifier.cancelTimerComplete(timer)
+        } else {
+            restTimerNotifier.cancelScheduledTimer(routineExerciseId)
+            restTimerNotifier.cancelTimerNotifications(routineExerciseId)
+        }
+    }
+
+    private fun finishRestTimer(routineExerciseId: String) {
+        val timer = _restTimers.value[routineExerciseId] ?: return
+        val alarmStillPending = RestTimerAlarmStore.loadTimer(getApplication(), routineExerciseId) != null
+        restTimerJobs.remove(routineExerciseId)
+        _restTimers.update { timers -> timers - routineExerciseId }
+        restTimerNotifier.cancelScheduledTimer(timer)
+        restTimerNotifier.cancelRunningTimer(timer)
+
+        if (!appInForeground.value && alarmStillPending) {
+            restTimerNotifier.showTimerComplete(timer)
+        }
+        if (appInForeground.value || alarmStillPending) {
+            triggerRestCompleteVibration(getApplication())
+        }
+    }
+
+    private fun cancelRestTimersMatching(predicate: (RestTimerState) -> Boolean) {
+        _restTimers.value.values
+            .filter(predicate)
+            .map { it.routineExerciseId }
+            .forEach(::cancelRestTimer)
+    }
+
+    private fun restoreScheduledRestTimers() {
+        RestTimerAlarmStore.loadTimers(getApplication()).forEach { storedTimer ->
+            val remaining = remainingRestSecondsFromWallClock(storedTimer.endWallClockMillis)
+            if (remaining <= 0) {
+                restTimerNotifier.cancelScheduledTimer(storedTimer)
+                return@forEach
+            }
+
+            val restoredTimer = storedTimer.copy(
+                remainingSeconds = remaining,
+                endElapsedRealtimeMillis = SystemClock.elapsedRealtime() + remaining * 1_000L
+            )
+            _restTimers.update { timers -> timers + (restoredTimer.routineExerciseId to restoredTimer) }
+            restTimerNotifier.scheduleTimerComplete(restoredTimer)
+            launchRestTimerJob(restoredTimer)
+        }
+    }
+
+    private fun remainingRestSeconds(endElapsedRealtimeMillis: Long): Int {
+        val millisRemaining = endElapsedRealtimeMillis - SystemClock.elapsedRealtime()
+        return ((millisRemaining + 999L) / 1_000L).toInt().coerceAtLeast(0)
+    }
+
+    private fun remainingRestSecondsFromWallClock(endWallClockMillis: Long): Int {
+        val millisRemaining = endWallClockMillis - System.currentTimeMillis()
+        return ((millisRemaining + 999L) / 1_000L).toInt().coerceAtLeast(0)
+    }
+
+    private fun loadLastWorkoutRoute(): LastWorkoutRoute? {
+        val routineId = navigationPrefs.getString(LAST_ROUTINE_ID_KEY, null)?.takeIf { it.isNotBlank() }
+        val dayId = navigationPrefs.getString(LAST_DAY_ID_KEY, null)?.takeIf { it.isNotBlank() }
+        return if (routineId != null && dayId != null) {
+            LastWorkoutRoute(routineId = routineId, dayId = dayId)
+        } else {
+            null
         }
     }
 
@@ -68,16 +256,28 @@ class GymViewModel(application: Application) : AndroidViewModel(application) {
 
     fun createRoutine(name: String) = routineRepository.createRoutine(name)
     fun updateRoutineName(routineId: String, name: String) = routineRepository.updateRoutineName(routineId, name)
-    fun deleteRoutine(routineId: String) = routineRepository.deleteRoutine(routineId)
+    fun deleteRoutine(routineId: String) {
+        cancelRestTimersMatching { it.routineId == routineId }
+        routineRepository.deleteRoutine(routineId)
+    }
     fun addDay(routineId: String) = routineRepository.addDay(routineId)
     fun updateDayName(routineId: String, dayId: String, name: String) = routineRepository.updateDayName(routineId, dayId, name)
-    fun removeDay(routineId: String, dayId: String) = routineRepository.removeDay(routineId, dayId)
+    fun removeDay(routineId: String, dayId: String) {
+        cancelRestTimersMatching { it.routineId == routineId && it.dayId == dayId }
+        routineRepository.removeDay(routineId, dayId)
+    }
     fun addBuiltInExercise(routineId: String, dayId: String, exercise: Exercise) = routineRepository.addBuiltInExercise(routineId, dayId, exercise)
     fun addCustomExercise(routineId: String, dayId: String, exercise: CustomExercise) = routineRepository.addCustomExercise(routineId, dayId, exercise)
     fun swapWithBuiltInExercise(routineId: String, dayId: String, routineExerciseId: String, exercise: Exercise) = routineRepository.swapWithBuiltInExercise(routineId, dayId, routineExerciseId, exercise)
     fun swapWithCustomExercise(routineId: String, dayId: String, routineExerciseId: String, exercise: CustomExercise) = routineRepository.swapWithCustomExercise(routineId, dayId, routineExerciseId, exercise)
-    fun removeExercise(routineId: String, dayId: String, routineExerciseId: String) = routineRepository.removeExercise(routineId, dayId, routineExerciseId)
-    fun removeExercises(routineId: String, dayId: String, routineExerciseIds: Set<String>) = routineRepository.removeExercises(routineId, dayId, routineExerciseIds)
+    fun removeExercise(routineId: String, dayId: String, routineExerciseId: String) {
+        cancelRestTimer(routineExerciseId)
+        routineRepository.removeExercise(routineId, dayId, routineExerciseId)
+    }
+    fun removeExercises(routineId: String, dayId: String, routineExerciseIds: Set<String>) {
+        routineExerciseIds.forEach(::cancelRestTimer)
+        routineRepository.removeExercises(routineId, dayId, routineExerciseIds)
+    }
     fun copyExercises(exercises: List<RoutineExercise>) {
         routineExerciseClipboard.value = exercises
     }
@@ -114,7 +314,43 @@ class GymViewModel(application: Application) : AndroidViewModel(application) {
     fun deleteCustomExercise(exerciseId: String) = routineRepository.deleteCustomExercise(exerciseId)
     fun exportRoutineBackup(): String = routineRepository.exportBackup()
     fun importRoutineBackup(json: String): Result<String> = routineRepository.importBackup(json)
+
+    override fun onCleared() {
+        val timers = _restTimers.value.values
+        restTimerJobs.values.forEach { it.cancel() }
+        if (appInForeground.value) {
+            timers.forEach { timer ->
+                restTimerNotifier.cancelScheduledTimer(timer)
+                restTimerNotifier.cancelRunningTimer(timer)
+            }
+        } else {
+            timers.forEach(restTimerNotifier::showRunningTimer)
+        }
+        super.onCleared()
+    }
+
+    private companion object {
+        const val NAVIGATION_PREFS_NAME = "gymuu_navigation"
+        const val LAST_ROUTINE_ID_KEY = "last_routine_id"
+        const val LAST_DAY_ID_KEY = "last_day_id"
+    }
 }
+
+data class LastWorkoutRoute(
+    val routineId: String,
+    val dayId: String
+)
+
+data class RestTimerState(
+    val routineId: String,
+    val dayId: String,
+    val routineExerciseId: String,
+    val exerciseName: String,
+    val totalSeconds: Int,
+    val remainingSeconds: Int,
+    val endElapsedRealtimeMillis: Long,
+    val endWallClockMillis: Long
+)
 
 data class GymUiState(
     val exercises: List<Exercise> = emptyList(),
@@ -122,7 +358,9 @@ data class GymUiState(
     val customExercises: List<CustomExercise> = emptyList(),
     val searchQuery: String = "",
     val selectedCategory: ExerciseCategory = ExerciseCategory.ALL,
-    val copiedExercises: List<RoutineExercise> = emptyList()
+    val copiedExercises: List<RoutineExercise> = emptyList(),
+    val restTimers: Map<String, RestTimerState> = emptyMap(),
+    val lastWorkoutRoute: LastWorkoutRoute? = null
 ) {
     fun routine(routineId: String): Routine? = routines.firstOrNull { it.id == routineId }
     fun day(routineId: String, dayId: String): WorkoutDay? = routine(routineId)?.days?.firstOrNull { it.id == dayId }

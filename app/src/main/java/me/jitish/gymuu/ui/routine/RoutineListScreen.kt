@@ -60,10 +60,15 @@ private sealed interface RoutineDialogState {
 
 @Composable
 internal fun RoutineLaunchScreen(state: GymUiState, navController: NavHostController) {
-    val routine = state.routines.firstOrNull()
-    val day = routine?.days.orEmpty().firstOrNull()
+    val savedRoute = state.lastWorkoutRoute
+    val savedRoutine = savedRoute?.let { route -> state.routines.firstOrNull { it.id == route.routineId } }
+    val savedDay = savedRoutine?.days?.firstOrNull { it.id == savedRoute.dayId }
+    val fallbackRoutine = state.routines.firstOrNull()
+    val fallbackDay = fallbackRoutine?.days.orEmpty().firstOrNull()
+    val routine = savedRoutine?.takeIf { savedDay != null } ?: fallbackRoutine
+    val day = savedDay ?: fallbackDay
 
-    LaunchedEffect(routine?.id, day?.id) {
+    LaunchedEffect(routine?.id, day?.id, savedRoute) {
         if (routine != null && day != null) {
             navController.navigate(Routes.workout(routine.id, day.id)) {
                 popUpTo(Routes.START) { inclusive = true }

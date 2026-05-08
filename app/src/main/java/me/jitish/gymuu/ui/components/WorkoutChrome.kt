@@ -6,6 +6,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -45,6 +46,7 @@ import me.jitish.gymuu.ui.theme.GymMuted
 
 @Composable
 internal fun WorkoutHeader(
+    routineTitle: String,
     title: String,
     onMenu: () -> Unit,
     onRename: () -> Unit,
@@ -61,12 +63,23 @@ internal fun WorkoutHeader(
                 .weight(1f)
                 .clip(RoundedCornerShape(6.dp))
                 .clickable(onClick = onRename)
-                .padding(horizontal = 4.dp, vertical = 8.dp),
+                .padding(horizontal = 4.dp, vertical = 5.dp),
             horizontalArrangement = Arrangement.Center,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(title, color = Color.White, fontSize = 23.sp, letterSpacing = 3.sp, textAlign = TextAlign.Center, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Spacer(Modifier.width(6.dp))
+            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.weight(1f, fill = false)) {
+                Text(
+                    routineTitle.uppercase(),
+                    color = GymMuted,
+                    fontSize = 12.sp,
+                    letterSpacing = 1.sp,
+                    textAlign = TextAlign.Center,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(title, color = Color.White, fontSize = 22.sp, letterSpacing = 3.sp, textAlign = TextAlign.Center, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+            Spacer(Modifier.width(8.dp))
             Icon(Icons.Default.Edit, contentDescription = "Rename day", tint = GymMuted, modifier = Modifier.size(16.dp))
         }
         CompactIconButton(onClick = onAddDay) { Icon(Icons.Default.AddCircleOutline, contentDescription = "Add day", tint = Color.White, modifier = Modifier.size(24.dp)) }

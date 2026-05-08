@@ -36,8 +36,10 @@ internal fun SetRow(
     onReps: (String) -> Unit,
     onWeight: (String) -> Unit,
     onRemove: () -> Unit,
-    checkboxEnabled: Boolean = true
+    checkboxEnabled: Boolean = true,
+    onBlockedCompletedClick: (() -> Unit)? = null
 ) {
+    val completionBlocked = !checkboxEnabled && !set.completed
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -45,8 +47,14 @@ internal fun SetRow(
     ) {
         Checkbox(
             checked = set.completed,
-            onCheckedChange = onCompleted,
-            enabled = checkboxEnabled,
+            onCheckedChange = { completed ->
+                if (completionBlocked) {
+                    onBlockedCompletedClick?.invoke()
+                } else {
+                    onCompleted(completed)
+                }
+            },
+            enabled = checkboxEnabled || completionBlocked,
             modifier = Modifier.size(38.dp),
             colors = CheckboxDefaults.colors(checkedColor = Color.White, uncheckedColor = GymMuted, checkmarkColor = Color.Black)
         )

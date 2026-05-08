@@ -30,27 +30,22 @@ import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 import me.jitish.gymuu.data.routine.ExerciseSource
 import me.jitish.gymuu.data.routine.RoutineExercise
 import me.jitish.gymuu.ui.GymViewModel
+import me.jitish.gymuu.ui.RestTimerState
 import me.jitish.gymuu.ui.components.CompactIconButton
 import me.jitish.gymuu.ui.components.InlineEditText
 import me.jitish.gymuu.ui.theme.GymBorder
@@ -79,90 +74,27 @@ internal fun RoutineExerciseCard(
     canMoveDown: Boolean,
     onMoveUp: () -> Unit,
     onMoveDown: () -> Unit,
+    restTimer: RestTimerState? = null,
+    restCompletionLocked: Boolean = false,
+    onRestCompletionBlocked: () -> Unit = {},
     mediaResetKey: Any? = null,
     mediaActive: Boolean = false
 ) {
-    val context = LocalContext.current
-    val coroutineScope = rememberCoroutineScope()
     val restActiveColor = Color(0xFF4CAF50)
-    val isRestTimerRunning = remember(exercise.id) { mutableStateOf(false) }
-    val remainingRestSeconds = remember(exercise.id) { mutableStateOf(0) }
-    val restTimerJob = remember(exercise.id) { mutableStateOf<Job?>(null) }
-    val normalizedRestValue = remember(exercise.id) { mutableStateOf<String?>(null) }
+    val isRestTimerRunning = restTimer != null
+    val displayedRest = restTimer?.let { formatRestCountdown(it.remainingSeconds) } ?: exercise.rest
     val mediaUrl = exercise.gifUrl?.takeIf { it.isNotBlank() }
     var fullscreenMediaUrl by remember(exercise.id, mediaUrl) { mutableStateOf<String?>(null) }
     val cardMediaResetKey = mediaResetKey to (fullscreenMediaUrl != null)
-
-    fun restoreNormalizedRestValue() {
-        normalizedRestValue.value?.let { normalized ->
-            viewModel.updateRest(routineId, dayId, exercise.id, normalized)
-        }
-        normalizedRestValue.value = null
-    }
-
-    fun cancelRestTimer() {
-        isRestTimerRunning.value = false
-        restTimerJob.value?.cancel()
-        restTimerJob.value = null
-        remainingRestSeconds.value = 0
-        restoreNormalizedRestValue()
-    }
-
-    fun startRestTimer() {
-        if (restTimerJob.value?.isActive == true) return
-
-        val totalRestSeconds = parseRestTimeToSeconds(exercise.rest)
-        if (totalRestSeconds <= 0) return
-
-        // Normalize the raw input (e.g. "120:00" → "99:59", "7" → "07:00") and persist it
-        val correctedRest = formatRestCountdown(totalRestSeconds)
-        normalizedRestValue.value = correctedRest
-        viewModel.updateRest(routineId, dayId, exercise.id, correctedRest)
-
-        isRestTimerRunning.value = true
-        remainingRestSeconds.value = totalRestSeconds
-
-        restTimerJob.value = coroutineScope.launch {
-            try {
-                while (remainingRestSeconds.value > 0) {
-                    delay(1000)
-
-                    remainingRestSeconds.value -= 1
-
-                    viewModel.updateRest(
-                        routineId,
-                        dayId,
-                        exercise.id,
-                        formatRestCountdown(remainingRestSeconds.value)
-                    )
-                }
-
-                if (isRestTimerRunning.value) {
-                    triggerRestCompleteVibration(context)
-                }
-            } finally {
-                isRestTimerRunning.value = false
-                remainingRestSeconds.value = 0
-                restTimerJob.value = null
-                restoreNormalizedRestValue()
-            }
-        }
-    }
-
-    DisposableEffect(exercise.id) {
-        onDispose {
-            cancelRestTimer()
-        }
-    }
 
     val selectionActive = selectionMode && selected
     Card(
         shape = RoundedCornerShape(8.dp),
         colors = CardDefaults.cardColors(containerColor = GymCard),
         border = BorderStroke(
-            if (isRestTimerRunning.value || selectionActive) 2.dp else 1.dp,
+            if (isRestTimerRunning || selectionActive) 2.dp else 1.dp,
             when {
-                isRestTimerRunning.value -> restActiveColor
+                isRestTimerRunning -> restActiveColor
                 selectionActive -> Color.White
                 else -> GymBorder
             }
@@ -271,42 +203,66 @@ internal fun RoutineExerciseCard(
                 }
             }
 
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(if (isRestTimerRunning) restActiveColor.copy(alpha = 0.14f) else Color.Transparent)
+                    .padding(
+                        horizontal = if (isRestTimerRunning) 12.dp else 0.dp,
+                        vertical = if (isRestTimerRunning) 10.dp else 0.dp
+                    )
+            ) {
                 Icon(
                     Icons.Default.Timer,
                     contentDescription = null,
-                    tint = if (isRestTimerRunning.value) restActiveColor else GymMuted,
-                    modifier = Modifier.size(17.dp)
+                    tint = if (isRestTimerRunning) restActiveColor else GymMuted,
+                    modifier = Modifier.size(if (isRestTimerRunning) 24.dp else 18.dp)
                 )
-                Text("REST:", color = if (isRestTimerRunning.value) restActiveColor else GymMuted, fontSize = 15.sp)
-                InlineEditText(
-                    value = exercise.rest,
-                    onValueChange = { input ->
-                        if (isRestTimerRunning.value) return@InlineEditText
-                        if (TIME_INPUT_PATTERN.matches(input)) {
-                            viewModel.updateRest(routineId, dayId, exercise.id, input)
-                        }
-                    },
-                    width = 70.dp,
-                    placeholder = "00:00",
-                    keyboardType = KeyboardType.Ascii,
-                    textColor = if (isRestTimerRunning.value) restActiveColor else Color.White
-                )
+                Text("REST:", color = if (isRestTimerRunning) restActiveColor else GymMuted, fontSize = if (isRestTimerRunning) 16.sp else 15.sp)
+                if (isRestTimerRunning) {
+                    Text(
+                        text = displayedRest,
+                        color = restActiveColor,
+                        fontSize = 24.sp,
+                        lineHeight = 28.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                } else {
+                    InlineEditText(
+                        value = displayedRest,
+                        onValueChange = { input ->
+                            if (TIME_INPUT_PATTERN.matches(input)) {
+                                viewModel.updateRest(routineId, dayId, exercise.id, input)
+                            }
+                        },
+                        width = 82.dp,
+                        placeholder = "00:00",
+                        keyboardType = KeyboardType.Ascii,
+                        textColor = Color.White
+                    )
+                }
             }
 
             exercise.sets.forEach { set ->
                 SetRow(
                     set = set,
                     onCompleted = { completed ->
-                        if (isRestTimerRunning.value && completed && !set.completed) return@SetRow
+                        if (restCompletionLocked && completed && !set.completed) {
+                            onRestCompletionBlocked()
+                            return@SetRow
+                        }
                         viewModel.updateSet(routineId, dayId, exercise.id, set.id, completed = completed)
-                        if (completed) {
-                            startRestTimer()
+                        if (completed && !set.completed) {
+                            viewModel.startRestTimer(routineId, dayId, exercise)
                         } else {
-                            cancelRestTimer()
+                            viewModel.cancelRestTimer(exercise.id)
                         }
                     },
-                    checkboxEnabled = !isRestTimerRunning.value || set.completed,
+                    checkboxEnabled = !restCompletionLocked || set.completed,
+                    onBlockedCompletedClick = onRestCompletionBlocked,
                     onReps = { viewModel.updateSet(routineId, dayId, exercise.id, set.id, reps = it) },
                     onWeight = { viewModel.updateSet(routineId, dayId, exercise.id, set.id, weight = it) },
                     onRemove = { viewModel.removeSet(routineId, dayId, exercise.id, set.id) }

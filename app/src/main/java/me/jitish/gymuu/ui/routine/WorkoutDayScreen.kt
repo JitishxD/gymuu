@@ -45,6 +45,7 @@ import me.jitish.gymuu.ui.components.WorkoutHeader
 import me.jitish.gymuu.ui.exercise.ExerciseInfoDialog
 import me.jitish.gymuu.ui.exercise.RoutineExerciseCard
 import me.jitish.gymuu.ui.exercise.RoutineExerciseInfoDialog
+import me.jitish.gymuu.ui.exercise.formatRestCountdown
 import me.jitish.gymuu.ui.navigation.Routes
 import me.jitish.gymuu.ui.theme.GymBlack
 
@@ -109,6 +110,12 @@ internal fun WorkoutDayScreen(
 
     fun updateExerciseSelection(exerciseId: String, selected: Boolean) {
         selectedExerciseIds = updatedExerciseSelection(selectedExerciseIds, exerciseId, selected)
+    }
+
+    fun showRestTimeRemainingToast() {
+        val activeTimer = state.restTimers.values.firstOrNull() ?: return
+        val remainingTime = formatRestCountdown(activeTimer.remainingSeconds)
+        Toast.makeText(context, "Rest time left: $remainingTime", Toast.LENGTH_SHORT).show()
     }
 
     fun copySelectedExercises() {
@@ -226,6 +233,12 @@ internal fun WorkoutDayScreen(
         closeBulkSelection()
     }
 
+    LaunchedEffect(routine?.id, activeDay?.id) {
+        val activeRoutine = routine ?: return@LaunchedEffect
+        val day = activeDay ?: return@LaunchedEffect
+        viewModel.rememberLastWorkout(activeRoutine.id, day.id)
+    }
+
     LaunchedEffect(activeExerciseIds) {
         selectedExerciseIds = selectedExerciseIds.filter { it in activeExerciseIds }
     }
@@ -267,6 +280,7 @@ internal fun WorkoutDayScreen(
                         .padding(padding)
                 ) {
                     WorkoutHeader(
+                        routineTitle = routine.name,
                         title = activeDay.name,
                         onMenu = { scope.launch { drawerState.open() } },
                         onRename = { dayToRename = activeDay },
@@ -383,6 +397,9 @@ internal fun WorkoutDayScreen(
                                         canMoveDown = index < exercises.lastIndex,
                                         onMoveUp = { viewModel.moveExercise(routine.id, day.id, exercise.id, -1) },
                                         onMoveDown = { viewModel.moveExercise(routine.id, day.id, exercise.id, 1) },
+                                        restTimer = state.restTimers[exercise.id],
+                                        restCompletionLocked = state.restTimers.isNotEmpty(),
+                                        onRestCompletionBlocked = ::showRestTimeRemainingToast,
                                         mediaResetKey = activeDay.id,
                                         mediaActive = mediaActive
                                     )

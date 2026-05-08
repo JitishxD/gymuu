@@ -12,6 +12,7 @@ private const val MAX_REST_SECONDS = 5999 // 99:59
 private const val DEFAULT_REST_SECONDS = 120 // 2:00
 
 internal val TIME_INPUT_PATTERN = Regex("""^\d{0,4}(:\d{0,2})?$""")
+internal val REST_COMPLETE_VIBRATION_PATTERN = longArrayOf(0, 300, 150, 300, 150, 500)
 
 internal fun parseRestTimeToSeconds(restValue: String): Int {
     val normalized = restValue.trim()
@@ -44,14 +45,12 @@ internal fun triggerRestCompleteVibration(context: Context) {
         return
     }
 
-    val vibrationPattern = longArrayOf(0, 300, 150, 300, 150, 500)
-
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
         val vibratorManager = context.getSystemService(VibratorManager::class.java) ?: return
         val vibrator = vibratorManager.defaultVibrator
         if (!vibrator.hasVibrator()) return
 
-        vibrator.vibrate(VibrationEffect.createWaveform(vibrationPattern, -1))
+        vibrator.vibrate(VibrationEffect.createWaveform(REST_COMPLETE_VIBRATION_PATTERN, -1))
         return
     }
 
@@ -59,5 +58,5 @@ internal fun triggerRestCompleteVibration(context: Context) {
     val vibrator = context.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator ?: return
     if (!vibrator.hasVibrator()) return
 
-    vibrator.vibrate(VibrationEffect.createWaveform(vibrationPattern, -1))
+    vibrator.vibrate(VibrationEffect.createWaveform(REST_COMPLETE_VIBRATION_PATTERN, -1))
 }
