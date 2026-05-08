@@ -15,7 +15,10 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -25,13 +28,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import coil.ImageLoader
-import coil.compose.SubcomposeAsyncImage
+import coil.compose.AsyncImage
 import coil.decode.GifDecoder
 import coil.decode.ImageDecoderDecoder
 import coil.disk.DiskCache
 import coil.memory.MemoryCache
 import coil.request.CachePolicy
 import coil.request.ImageRequest
+import me.jitish.gymuu.ui.media.isVideoMedia
 import me.jitish.gymuu.ui.theme.GymMuted
 
 @Composable
@@ -78,6 +82,8 @@ internal fun GifPreview(url: String?, modifier: Modifier = Modifier) {
 
     val appContext = context.applicationContext
     val imageLoader = remember(appContext) { SharedGifImageLoader.get(appContext) }
+    var isLoading by remember(url) { mutableStateOf(true) }
+    var hasError by remember(url) { mutableStateOf(false) }
     val model = remember(url) {
         ImageRequest.Builder(appContext)
             .data(url)
@@ -89,19 +95,35 @@ internal fun GifPreview(url: String?, modifier: Modifier = Modifier) {
             .build()
     }
 
-    SubcomposeAsyncImage(
-        model = model,
-        imageLoader = imageLoader,
-        contentDescription = null,
-        contentScale = ContentScale.Fit,
-        modifier = modifier,
-        loading = {
-            Box(Modifier.fillMaxSize().background(Color.White), contentAlignment = Alignment.Center) {
+    Box(modifier = modifier) {
+        AsyncImage(
+            model = model,
+            imageLoader = imageLoader,
+            contentDescription = null,
+            contentScale = ContentScale.Fit,
+            modifier = Modifier.matchParentSize(),
+            onLoading = {
+                isLoading = true
+                hasError = false
+            },
+            onSuccess = {
+                isLoading = false
+                hasError = false
+            },
+            onError = {
+                isLoading = false
+                hasError = true
+            }
+        )
+        if (isLoading) {
+            Box(Modifier.matchParentSize().background(Color.White), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator(color = GymMuted, strokeWidth = 2.dp, modifier = Modifier.size(28.dp))
             }
-        },
-        error = { MediaPlaceholder() }
-    )
+        }
+        if (hasError) {
+            MediaPlaceholder()
+        }
+    }
 }
 
 @Composable
@@ -162,13 +184,6 @@ private object SharedGifImageLoader {
                 .also { loader = it }
         }
     }
-}
-
-private fun isVideoMedia(url: String, mimeType: String?): Boolean {
-    if (mimeType?.startsWith("video/", ignoreCase = true) == true) return true
-
-    val path = url.substringBefore('?').substringBefore('#').lowercase()
-    return listOf(".mp4", ".m4v", ".mov", ".webm", ".3gp", ".3gpp", ".mkv", ".avi").any(path::endsWith)
 }
 
 @Composable
