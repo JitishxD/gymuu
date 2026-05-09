@@ -7,18 +7,18 @@ import androidx.compose.ui.graphics.Color
 
 private val DarkColorScheme = darkColorScheme(
     primary = Color.White,
-    secondary = GymMuted,
-    tertiary = GymDanger,
-    background = GymBlack,
-    surface = GymCard,
-    surfaceVariant = GymCardAlt,
-    outline = GymBorder,
-    onPrimary = GymBlack,
+    secondary = GymuuMuted,
+    tertiary = GymuuDanger,
+    background = GymuuBlack,
+    surface = GymuuCard,
+    surfaceVariant = GymuuCardAlt,
+    outline = GymuuBorder,
+    onPrimary = GymuuBlack,
     onSecondary = Color.White,
-    onTertiary = GymBlack,
+    onTertiary = GymuuBlack,
     onBackground = Color.White,
     onSurface = Color.White,
-    onSurfaceVariant = GymMuted
+    onSurfaceVariant = GymuuMuted
 )
 
 @Composable

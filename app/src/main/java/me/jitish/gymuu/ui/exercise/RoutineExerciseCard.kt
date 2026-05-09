@@ -44,15 +44,15 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import me.jitish.gymuu.data.routine.ExerciseSource
 import me.jitish.gymuu.data.routine.RoutineExercise
-import me.jitish.gymuu.ui.GymViewModel
+import me.jitish.gymuu.ui.AppViewModel
 import me.jitish.gymuu.ui.RestTimerState
 import me.jitish.gymuu.ui.components.CompactIconButton
 import me.jitish.gymuu.ui.components.InlineEditText
-import me.jitish.gymuu.ui.theme.GymBorder
-import me.jitish.gymuu.ui.theme.GymBlack
-import me.jitish.gymuu.ui.theme.GymCard
-import me.jitish.gymuu.ui.theme.GymDanger
-import me.jitish.gymuu.ui.theme.GymMuted
+import me.jitish.gymuu.ui.theme.GymuuBorder
+import me.jitish.gymuu.ui.theme.GymuuBlack
+import me.jitish.gymuu.ui.theme.GymuuCard
+import me.jitish.gymuu.ui.theme.GymuuDanger
+import me.jitish.gymuu.ui.theme.GymuuMuted
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -61,7 +61,7 @@ internal fun RoutineExerciseCard(
     routineId: String,
     dayId: String,
     exercise: RoutineExercise,
-    viewModel: GymViewModel,
+    viewModel: AppViewModel,
     selectionMode: Boolean,
     selected: Boolean,
     onSelectedChange: (Boolean) -> Unit,
@@ -90,13 +90,13 @@ internal fun RoutineExerciseCard(
     val selectionActive = selectionMode && selected
     Card(
         shape = RoundedCornerShape(8.dp),
-        colors = CardDefaults.cardColors(containerColor = GymCard),
+        colors = CardDefaults.cardColors(containerColor = GymuuCard),
         border = BorderStroke(
             if (isRestTimerRunning || selectionActive) 2.dp else 1.dp,
             when {
                 isRestTimerRunning -> restActiveColor
                 selectionActive -> Color.White
-                else -> GymBorder
+                else -> GymuuBorder
             }
         ),
         modifier = Modifier
@@ -119,7 +119,7 @@ internal fun RoutineExerciseCard(
                         checked = selected,
                         onCheckedChange = onSelectedChange,
                         modifier = Modifier.size(38.dp),
-                        colors = CheckboxDefaults.colors(checkedColor = Color.White, uncheckedColor = GymMuted, checkmarkColor = Color.Black)
+                        colors = CheckboxDefaults.colors(checkedColor = Color.White, uncheckedColor = GymuuMuted, checkmarkColor = Color.Black)
                     )
                 }
                 Box(
@@ -149,16 +149,16 @@ internal fun RoutineExerciseCard(
             if (showActions) {
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                     CompactIconButton(enabled = canMoveUp, onClick = onMoveUp) {
-                        Icon(Icons.Default.ArrowUpward, contentDescription = "Move exercise up", tint = if (canMoveUp) Color.White else GymMuted.copy(alpha = 0.4f), modifier = Modifier.size(22.dp))
+                        Icon(Icons.Default.ArrowUpward, contentDescription = "Move exercise up", tint = if (canMoveUp) Color.White else GymuuMuted.copy(alpha = 0.4f), modifier = Modifier.size(22.dp))
                     }
                     CompactIconButton(enabled = canMoveDown, onClick = onMoveDown) {
-                        Icon(Icons.Default.ArrowDownward, contentDescription = "Move exercise down", tint = if (canMoveDown) Color.White else GymMuted.copy(alpha = 0.4f), modifier = Modifier.size(22.dp))
+                        Icon(Icons.Default.ArrowDownward, contentDescription = "Move exercise down", tint = if (canMoveDown) Color.White else GymuuMuted.copy(alpha = 0.4f), modifier = Modifier.size(22.dp))
                     }
                     CompactIconButton(onClick = onSwap) {
                         Icon(Icons.Default.SwapHoriz, contentDescription = "Swap exercise", tint = Color.White, modifier = Modifier.size(22.dp))
                     }
                     CompactIconButton(onClick = { viewModel.removeExercise(routineId, dayId, exercise.id) }) {
-                        Icon(Icons.Default.DeleteOutline, contentDescription = "Delete exercise", tint = GymDanger, modifier = Modifier.size(24.dp))
+                        Icon(Icons.Default.DeleteOutline, contentDescription = "Delete exercise", tint = GymuuDanger, modifier = Modifier.size(24.dp))
                     }
                 }
             }
@@ -169,7 +169,7 @@ internal fun RoutineExerciseCard(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(8.dp))
-                        .background(if (customMedia) GymBlack else Color.White)
+                        .background(if (customMedia) GymuuBlack else Color.White)
                         .padding(if (customMedia) 10.dp else 6.dp),
                     contentAlignment = Alignment.Center
                 ) {
@@ -218,10 +218,10 @@ internal fun RoutineExerciseCard(
                 Icon(
                     Icons.Default.Timer,
                     contentDescription = null,
-                    tint = if (isRestTimerRunning) restActiveColor else GymMuted,
+                    tint = if (isRestTimerRunning) restActiveColor else GymuuMuted,
                     modifier = Modifier.size(if (isRestTimerRunning) 24.dp else 18.dp)
                 )
-                Text("REST:", color = if (isRestTimerRunning) restActiveColor else GymMuted, fontSize = if (isRestTimerRunning) 16.sp else 15.sp)
+                Text("REST:", color = if (isRestTimerRunning) restActiveColor else GymuuMuted, fontSize = if (isRestTimerRunning) 16.sp else 15.sp)
                 if (isRestTimerRunning) {
                     Text(
                         text = displayedRest,
@@ -271,13 +271,13 @@ internal fun RoutineExerciseCard(
 
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                 CompactIconButton(onClick = { viewModel.addSet(routineId, dayId, exercise.id) }) {
-                    Icon(Icons.Default.AddCircleOutline, contentDescription = "Add set", tint = GymMuted, modifier = Modifier.size(22.dp))
+                    Icon(Icons.Default.AddCircleOutline, contentDescription = "Add set", tint = GymuuMuted, modifier = Modifier.size(22.dp))
                 }
             }
 
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Icon(Icons.Default.NoteAlt, contentDescription = null, tint = GymMuted, modifier = Modifier.size(18.dp))
-                Text("NOTES", color = GymMuted, fontSize = 15.sp)
+                Icon(Icons.Default.NoteAlt, contentDescription = null, tint = GymuuMuted, modifier = Modifier.size(18.dp))
+                Text("NOTES", color = GymuuMuted, fontSize = 15.sp)
                 InlineEditText(
                     value = exercise.notes,
                     onValueChange = { viewModel.updateNotes(routineId, dayId, exercise.id, it) },

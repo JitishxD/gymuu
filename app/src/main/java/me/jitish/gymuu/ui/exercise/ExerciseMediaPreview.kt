@@ -36,13 +36,13 @@ import coil.memory.MemoryCache
 import coil.request.CachePolicy
 import coil.request.ImageRequest
 import me.jitish.gymuu.ui.media.isVideoMedia
-import me.jitish.gymuu.ui.theme.GymMuted
+import me.jitish.gymuu.ui.theme.GymuuMuted
 
 @Composable
 internal fun ExerciseMediaPreview(
     url: String?,
-    mimeType: String? = null,
     modifier: Modifier = Modifier,
+    mimeType: String? = null,
     showVideoControls: Boolean = true,
     resetKey: Any? = null,
     playWhenActive: Boolean = false,
@@ -117,7 +117,7 @@ internal fun GifPreview(url: String?, modifier: Modifier = Modifier) {
         )
         if (isLoading) {
             Box(Modifier.matchParentSize().background(Color.White), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator(color = GymMuted, strokeWidth = 2.dp, modifier = Modifier.size(28.dp))
+                CircularProgressIndicator(color = GymuuMuted, strokeWidth = 2.dp, modifier = Modifier.size(28.dp))
             }
         }
         if (hasError) {

@@ -26,8 +26,8 @@ import me.jitish.gymuu.data.routine.WorkoutSet
 import me.jitish.gymuu.ui.components.CompactIconButton
 import me.jitish.gymuu.ui.components.VerticalRule
 import me.jitish.gymuu.ui.components.clearFocusOnKeyboardDismiss
-import me.jitish.gymuu.ui.theme.GymDanger
-import me.jitish.gymuu.ui.theme.GymMuted
+import me.jitish.gymuu.ui.theme.GymuuDanger
+import me.jitish.gymuu.ui.theme.GymuuMuted
 
 @Composable
 internal fun SetRow(
@@ -56,7 +56,7 @@ internal fun SetRow(
             },
             enabled = checkboxEnabled || completionBlocked,
             modifier = Modifier.size(38.dp),
-            colors = CheckboxDefaults.colors(checkedColor = Color.White, uncheckedColor = GymMuted, checkmarkColor = Color.Black)
+            colors = CheckboxDefaults.colors(checkedColor = Color.White, uncheckedColor = GymuuMuted, checkmarkColor = Color.Black)
         )
         SetCell(label = "SET NO.", value = set.setNo.toString(), modifier = Modifier.weight(1f), editable = false)
         VerticalRule()
@@ -64,7 +64,7 @@ internal fun SetRow(
         VerticalRule()
         SetCell(label = "WEIGHT", value = set.weight, placeholder = "-", modifier = Modifier.weight(1f), onValueChange = onWeight)
         CompactIconButton(onClick = onRemove) {
-            Icon(Icons.Default.RemoveCircleOutline, contentDescription = "Remove set", tint = GymDanger, modifier = Modifier.size(22.dp))
+            Icon(Icons.Default.RemoveCircleOutline, contentDescription = "Remove set", tint = GymuuDanger, modifier = Modifier.size(22.dp))
         }
     }
 }
@@ -79,7 +79,7 @@ private fun SetCell(
     onValueChange: (String) -> Unit = {}
 ) {
     Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = modifier) {
-        Text(label, color = GymMuted, fontSize = 13.sp, letterSpacing = 1.sp, maxLines = 1)
+        Text(label, color = GymuuMuted, fontSize = 13.sp, letterSpacing = 1.sp, maxLines = 1)
         if (editable) {
             BasicTextField(
                 value = value,

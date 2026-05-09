@@ -30,10 +30,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import me.jitish.gymuu.ui.components.CompactIconButton
-import me.jitish.gymuu.ui.theme.GymBorder
-import me.jitish.gymuu.ui.theme.GymCard
-import me.jitish.gymuu.ui.theme.GymDanger
-import me.jitish.gymuu.ui.theme.GymMuted
+import me.jitish.gymuu.ui.theme.GymuuBorder
+import me.jitish.gymuu.ui.theme.GymuuCard
+import me.jitish.gymuu.ui.theme.GymuuDanger
+import me.jitish.gymuu.ui.theme.GymuuMuted
 
 @Composable
 internal fun WorkoutBulkActionBar(
@@ -63,15 +63,15 @@ internal fun WorkoutBulkActionBar(
         modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(8.dp))
-            .background(GymCard)
-            .border(BorderStroke(1.dp, GymBorder), RoundedCornerShape(8.dp))
+            .background(GymuuCard)
+            .border(BorderStroke(1.dp, GymuuBorder), RoundedCornerShape(8.dp))
             .padding(start = 14.dp, end = 8.dp, top = 8.dp, bottom = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(4.dp)
     ) {
         Text(
             text = statusText,
-            color = if (hasSelection || canPaste) Color.White else GymMuted,
+            color = if (hasSelection || canPaste) Color.White else GymuuMuted,
             fontSize = 14.sp,
             letterSpacing = 1.sp,
             modifier = Modifier.weight(1f),
@@ -91,7 +91,7 @@ internal fun WorkoutBulkActionBar(
             Icon(Icons.Default.ContentPaste, contentDescription = "Paste copied exercises", tint = actionTint(canPaste), modifier = Modifier.size(22.dp))
         }
         CompactIconButton(enabled = hasSelection, onClick = onDelete) {
-            Icon(Icons.Default.DeleteOutline, contentDescription = "Delete selected exercises", tint = if (hasSelection) GymDanger else GymMuted.copy(alpha = 0.4f), modifier = Modifier.size(22.dp))
+            Icon(Icons.Default.DeleteOutline, contentDescription = "Delete selected exercises", tint = if (hasSelection) GymuuDanger else GymuuMuted.copy(alpha = 0.4f), modifier = Modifier.size(22.dp))
         }
         CompactIconButton(onClick = onClear) {
             Icon(Icons.Default.Close, contentDescription = "Close bulk actions", tint = Color.White, modifier = Modifier.size(22.dp))
@@ -112,14 +112,14 @@ internal fun PastePlacementDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = GymCard,
+        containerColor = GymuuCard,
         title = {
             Text("PASTE EXERCISES", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
         },
         text = {
             Text(
                 text = "Paste $copiedLabel before or after $exerciseLabel?",
-                color = GymMuted,
+                color = GymuuMuted,
                 fontSize = 15.sp
             )
         },
@@ -131,7 +131,7 @@ internal fun PastePlacementDialog(
         dismissButton = {
             Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 TextButton(onClick = onDismiss) {
-                    Text("CANCEL", color = GymMuted)
+                    Text("CANCEL", color = GymuuMuted)
                 }
                 TextButton(onClick = onPasteBefore) {
                     Text("BEFORE", color = Color.White)
@@ -142,5 +142,5 @@ internal fun PastePlacementDialog(
 }
 
 private fun actionTint(enabled: Boolean): Color {
-    return if (enabled) Color.White else GymMuted.copy(alpha = 0.4f)
+    return if (enabled) Color.White else GymuuMuted.copy(alpha = 0.4f)
 }

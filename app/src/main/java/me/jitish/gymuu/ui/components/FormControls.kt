@@ -34,13 +34,13 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
-import me.jitish.gymuu.ui.theme.GymBorder
-import me.jitish.gymuu.ui.theme.GymCard
-import me.jitish.gymuu.ui.theme.GymDanger
-import me.jitish.gymuu.ui.theme.GymMuted
+import me.jitish.gymuu.ui.theme.GymuuBorder
+import me.jitish.gymuu.ui.theme.GymuuCard
+import me.jitish.gymuu.ui.theme.GymuuDanger
+import me.jitish.gymuu.ui.theme.GymuuMuted
 
 @Composable
-internal fun GymInput(
+internal fun GymuuInput(
     label: String,
     value: TextFieldValue,
     onValueChange: (TextFieldValue) -> Unit,
@@ -61,7 +61,7 @@ internal fun GymInput(
     }
 
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Text(label, color = GymMuted, fontSize = 14.sp, letterSpacing = 1.sp)
+        Text(label, color = GymuuMuted, fontSize = 14.sp, letterSpacing = 1.sp)
         OutlinedTextField(
             value = value,
             onValueChange = onValueChange,
@@ -73,8 +73,8 @@ internal fun GymInput(
                 unfocusedTextColor = Color.White,
                 focusedContainerColor = Color(0xFF151515),
                 unfocusedContainerColor = Color(0xFF151515),
-                focusedBorderColor = GymBorder,
-                unfocusedBorderColor = GymBorder,
+                focusedBorderColor = GymuuBorder,
+                unfocusedBorderColor = GymuuBorder,
                 cursorColor = Color.White
             ),
             shape = RoundedCornerShape(10.dp),
@@ -83,12 +83,12 @@ internal fun GymInput(
                 .clearFocusOnKeyboardDismiss()
                 .focusRequester(focusRequester)
         )
-        helper?.let { Text(it, color = GymMuted, fontSize = 13.sp) }
+        helper?.let { Text(it, color = GymuuMuted, fontSize = 13.sp) }
     }
 }
 
 @Composable
-internal fun GymInput(
+internal fun GymuuInput(
     label: String,
     value: String,
     onValueChange: (String) -> Unit,
@@ -109,7 +109,7 @@ internal fun GymInput(
     }
 
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Text(label, color = GymMuted, fontSize = 14.sp, letterSpacing = 1.sp)
+        Text(label, color = GymuuMuted, fontSize = 14.sp, letterSpacing = 1.sp)
         OutlinedTextField(
             value = value,
             onValueChange = onValueChange,
@@ -121,8 +121,8 @@ internal fun GymInput(
                 unfocusedTextColor = Color.White,
                 focusedContainerColor = Color(0xFF151515),
                 unfocusedContainerColor = Color(0xFF151515),
-                focusedBorderColor = GymBorder,
-                unfocusedBorderColor = GymBorder,
+                focusedBorderColor = GymuuBorder,
+                unfocusedBorderColor = GymuuBorder,
                 cursorColor = Color.White
             ),
             shape = RoundedCornerShape(10.dp),
@@ -131,7 +131,7 @@ internal fun GymInput(
                 .clearFocusOnKeyboardDismiss()
                 .focusRequester(focusRequester)
         )
-        helper?.let { Text(it, color = GymMuted, fontSize = 13.sp) }
+        helper?.let { Text(it, color = GymuuMuted, fontSize = 13.sp) }
     }
 }
 
@@ -142,11 +142,11 @@ internal fun NameDialog(title: String, initialValue: String, label: String, onDi
     }
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = GymCard,
+        containerColor = GymuuCard,
         title = { Text(title, color = Color.White) },
-        text = { GymInput(label = label, value = value, onValueChange = { value = it }, placeholder = "e.g. Push Day", autoFocus = true) },
+        text = { GymuuInput(label = label, value = value, onValueChange = { value = it }, placeholder = "e.g. Push Day", autoFocus = true) },
         confirmButton = { TextButton(onClick = { onConfirm(value.text) }) { Text("CONFIRM", color = Color.White) } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("CANCEL", color = GymMuted) } }
+        dismissButton = { TextButton(onClick = onDismiss) { Text("CANCEL", color = GymuuMuted) } }
     )
 }
 
@@ -154,10 +154,10 @@ internal fun NameDialog(title: String, initialValue: String, label: String, onDi
 internal fun ConfirmDeleteDialog(title: String, text: String, onDismiss: () -> Unit, onConfirm: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = GymCard,
+        containerColor = GymuuCard,
         title = { Text(title, color = Color.White) },
-        text = { Text(text, color = GymMuted) },
-        confirmButton = { TextButton(onClick = onConfirm) { Text("DELETE", color = GymDanger) } },
+        text = { Text(text, color = GymuuMuted) },
+        confirmButton = { TextButton(onClick = onConfirm) { Text("DELETE", color = GymuuDanger) } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("CANCEL", color = Color.White) } }
     )
 }
@@ -171,7 +171,7 @@ internal fun InlineEditText(
     placeholder: String = "",
     keyboardType: KeyboardType = KeyboardType.Text,
     textColor: Color = Color.White,
-    placeholderColor: Color = GymMuted,
+    placeholderColor: Color = GymuuMuted,
     singleLine: Boolean = true,
     minLines: Int = 1,
     maxLines: Int = if (singleLine) 1 else Int.MAX_VALUE

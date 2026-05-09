@@ -39,18 +39,18 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import me.jitish.gymuu.R
 import me.jitish.gymuu.data.routine.Routine
-import me.jitish.gymuu.ui.GymUiState
-import me.jitish.gymuu.ui.GymViewModel
+import me.jitish.gymuu.ui.AppUiState
+import me.jitish.gymuu.ui.AppViewModel
 import me.jitish.gymuu.ui.components.AppIconBadge
 import me.jitish.gymuu.ui.components.ConfirmDeleteDialog
 import me.jitish.gymuu.ui.components.DividerLine
-import me.jitish.gymuu.ui.components.GymFab
+import me.jitish.gymuu.ui.components.GymuuFab
 import me.jitish.gymuu.ui.components.NameDialog
 import me.jitish.gymuu.ui.components.RoutineRow
 import me.jitish.gymuu.ui.components.SectionHeading
 import me.jitish.gymuu.ui.navigation.Routes
-import me.jitish.gymuu.ui.theme.GymBlack
-import me.jitish.gymuu.ui.theme.GymMuted
+import me.jitish.gymuu.ui.theme.GymuuBlack
+import me.jitish.gymuu.ui.theme.GymuuMuted
 import java.time.LocalDate
 
 private sealed interface RoutineDialogState {
@@ -59,7 +59,7 @@ private sealed interface RoutineDialogState {
 }
 
 @Composable
-internal fun RoutineLaunchScreen(state: GymUiState, navController: NavHostController) {
+internal fun RoutineLaunchScreen(state: AppUiState, navController: NavHostController) {
     val savedRoute = state.lastWorkoutRoute
     val savedRoutine = savedRoute?.let { route -> state.routines.firstOrNull { it.id == route.routineId } }
     val savedDay = savedRoutine?.days?.firstOrNull { it.id == savedRoute.dayId }
@@ -80,17 +80,17 @@ internal fun RoutineLaunchScreen(state: GymUiState, navController: NavHostContro
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(GymBlack)
+            .background(GymuuBlack)
             .statusBarsPadding()
             .padding(24.dp),
         contentAlignment = Alignment.Center
     ) {
-        Text("LOADING ROUTINE", color = GymMuted, fontSize = 14.sp, letterSpacing = 3.sp)
+        Text("LOADING ROUTINE", color = GymuuMuted, fontSize = 14.sp, letterSpacing = 3.sp)
     }
 }
 
 @Composable
-internal fun RoutineListScreen(state: GymUiState, viewModel: GymViewModel, navController: NavHostController) {
+internal fun RoutineListScreen(state: AppUiState, viewModel: AppViewModel, navController: NavHostController) {
     val context = LocalContext.current
     var routineDialogState by remember { mutableStateOf<RoutineDialogState?>(null) }
     var routineToDelete by remember { mutableStateOf<Routine?>(null) }
@@ -132,9 +132,9 @@ internal fun RoutineListScreen(state: GymUiState, viewModel: GymViewModel, navCo
     }
 
     Scaffold(
-        containerColor = GymBlack,
+        containerColor = GymuuBlack,
         floatingActionButton = {
-            GymFab(onClick = { routineDialogState = RoutineDialogState.Create })
+            GymuuFab(onClick = { routineDialogState = RoutineDialogState.Create })
         }
     ) { padding ->
         LazyColumn(
@@ -191,7 +191,7 @@ internal fun RoutineListScreen(state: GymUiState, viewModel: GymViewModel, navCo
             item {
                 Text(
                     text = "Export saves all routines and custom exercises as a JSON backup file.",
-                    color = GymMuted,
+                    color = GymuuMuted,
                     fontSize = 16.sp
                 )
             }

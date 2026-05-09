@@ -34,7 +34,7 @@ import me.jitish.gymuu.ui.exercise.formatRestCountdown
 import me.jitish.gymuu.ui.exercise.parseRestTimeToSeconds
 import me.jitish.gymuu.ui.exercise.triggerRestCompleteVibration
 
-class GymViewModel(application: Application) : AndroidViewModel(application) {
+class AppViewModel(application: Application) : AndroidViewModel(application) {
     private val exerciseRepository = ExerciseRepository(application)
     private val routineRepository = RoutineRepository(application)
     private val settingsRepository = AppSettingsRepository(application)
@@ -49,7 +49,7 @@ class GymViewModel(application: Application) : AndroidViewModel(application) {
     private val _restTimers = MutableStateFlow<Map<String, RestTimerState>>(emptyMap())
     private val appInForeground = MutableStateFlow(false)
 
-    val uiState: StateFlow<GymUiState> = combine(
+    val uiState: StateFlow<AppUiState> = combine(
         combine(
             exerciseRepository.exercises,
             routineRepository.routines,
@@ -57,7 +57,7 @@ class GymViewModel(application: Application) : AndroidViewModel(application) {
             searchQuery,
             selectedCategory
         ) { exercises, routines, customExercises, search, category ->
-            GymUiState(
+            AppUiState(
                 exercises = exercises,
                 routines = routines,
                 customExercises = customExercises,
@@ -102,7 +102,7 @@ class GymViewModel(application: Application) : AndroidViewModel(application) {
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5_000),
-        initialValue = GymUiState()
+        initialValue = AppUiState()
     )
 
     init {
@@ -400,7 +400,7 @@ data class RestTimerState(
     val endWallClockMillis: Long
 )
 
-data class GymUiState(
+data class AppUiState(
     val exercises: List<Exercise> = emptyList(),
     val routines: List<Routine> = emptyList(),
     val customExercises: List<CustomExercise> = emptyList(),

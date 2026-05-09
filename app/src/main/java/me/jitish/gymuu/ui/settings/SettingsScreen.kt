@@ -36,23 +36,23 @@ import androidx.navigation.NavHostController
 import me.jitish.gymuu.data.settings.VibrationIntensity
 import me.jitish.gymuu.data.settings.VibrationPattern
 import me.jitish.gymuu.data.settings.VibrationRepeatOptions
-import me.jitish.gymuu.ui.GymUiState
-import me.jitish.gymuu.ui.GymViewModel
+import me.jitish.gymuu.ui.AppUiState
+import me.jitish.gymuu.ui.AppViewModel
 import me.jitish.gymuu.ui.components.SectionHeading
 import me.jitish.gymuu.ui.components.TopTitleBar
 import me.jitish.gymuu.ui.navigation.Routes
-import me.jitish.gymuu.ui.theme.GymBlack
-import me.jitish.gymuu.ui.theme.GymBorder
-import me.jitish.gymuu.ui.theme.GymCard
-import me.jitish.gymuu.ui.theme.GymMuted
+import me.jitish.gymuu.ui.theme.GymuuBlack
+import me.jitish.gymuu.ui.theme.GymuuBorder
+import me.jitish.gymuu.ui.theme.GymuuCard
+import me.jitish.gymuu.ui.theme.GymuuMuted
 
 @Composable
 internal fun SettingsScreen(
-    state: GymUiState,
-    viewModel: GymViewModel,
+    state: AppUiState,
+    viewModel: AppViewModel,
     navController: NavHostController
 ) {
-    Scaffold(containerColor = GymBlack) { padding ->
+    Scaffold(containerColor = GymuuBlack) { padding ->
         LazyColumn(
             modifier = Modifier.padding(padding),
             contentPadding = PaddingValues(start = 18.dp, end = 18.dp, top = 12.dp, bottom = 32.dp),
@@ -104,8 +104,8 @@ private fun VibrationIntensityPanel(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(8.dp))
-            .background(GymCard)
-            .border(1.dp, GymBorder, RoundedCornerShape(8.dp))
+            .background(GymuuCard)
+            .border(1.dp, GymuuBorder, RoundedCornerShape(8.dp))
             .padding(18.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
@@ -116,7 +116,7 @@ private fun VibrationIntensityPanel(
         ) {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.weight(1f)) {
                 Text("Vibration intensity", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
-                Text("Rest complete", color = GymMuted, fontSize = 14.sp, letterSpacing = 1.sp)
+                Text("Rest complete", color = GymuuMuted, fontSize = 14.sp, letterSpacing = 1.sp)
             }
             Text(
                 text = "${intensity.label.uppercase()} / ${pattern.label.uppercase()} / ${repeatCount}X",
@@ -140,8 +140,8 @@ private fun VibrationIntensityPanel(
                 thumbColor = Color.White,
                 activeTrackColor = Color.White,
                 activeTickColor = Color.Black,
-                inactiveTrackColor = GymBorder,
-                inactiveTickColor = GymMuted
+                inactiveTrackColor = GymuuBorder,
+                inactiveTickColor = GymuuMuted
             )
         )
 
@@ -149,7 +149,7 @@ private fun VibrationIntensityPanel(
             VibrationIntensity.entries.forEach { option ->
                 Text(
                     text = "${option.percent}%",
-                    color = if (option == intensity) Color.White else GymMuted,
+                    color = if (option == intensity) Color.White else GymuuMuted,
                     fontSize = 12.sp,
                     textAlign = TextAlign.Center,
                     modifier = Modifier.weight(1f)
@@ -165,8 +165,8 @@ private fun VibrationIntensityPanel(
             colors = ButtonDefaults.buttonColors(
                 containerColor = Color.White,
                 contentColor = Color.Black,
-                disabledContainerColor = GymBorder,
-                disabledContentColor = GymMuted
+                disabledContainerColor = GymuuBorder,
+                disabledContentColor = GymuuMuted
             ),
             shape = RoundedCornerShape(8.dp),
             modifier = Modifier.fillMaxWidth()
@@ -181,7 +181,7 @@ private fun VibrationIntensityPanel(
         }
 
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text("REPEATS", color = GymMuted, fontSize = 12.sp, letterSpacing = 2.sp)
+            Text("REPEATS", color = GymuuMuted, fontSize = 12.sp, letterSpacing = 2.sp)
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
                 VibrationRepeatOptions.OPTIONS.forEach { option ->
                     Button(
@@ -193,8 +193,8 @@ private fun VibrationIntensityPanel(
                         colors = ButtonDefaults.buttonColors(
                             containerColor = if (option == repeatCount) Color.White else Color(0xFF2A2A2A),
                             contentColor = if (option == repeatCount) Color.Black else Color.White,
-                            disabledContainerColor = GymBorder,
-                            disabledContentColor = GymMuted
+                            disabledContainerColor = GymuuBorder,
+                            disabledContentColor = GymuuMuted
                         ),
                         shape = RoundedCornerShape(8.dp),
                         modifier = Modifier.weight(1f)
@@ -212,7 +212,7 @@ private fun VibrationIntensityPanel(
         ) {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.weight(1f)) {
                 Text("Until confirmed", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
-                Text("Background alert", color = GymMuted, fontSize = 13.sp, letterSpacing = 1.sp)
+                Text("Background alert", color = GymuuMuted, fontSize = 13.sp, letterSpacing = 1.sp)
             }
             Switch(
                 checked = vibrateUntilConfirmed,
@@ -221,18 +221,18 @@ private fun VibrationIntensityPanel(
                 colors = SwitchDefaults.colors(
                     checkedThumbColor = Color.Black,
                     checkedTrackColor = Color.White,
-                    uncheckedThumbColor = GymMuted,
-                    uncheckedTrackColor = GymBorder,
-                    disabledCheckedThumbColor = GymMuted,
-                    disabledCheckedTrackColor = GymBorder,
-                    disabledUncheckedThumbColor = GymMuted,
-                    disabledUncheckedTrackColor = GymBorder
+                    uncheckedThumbColor = GymuuMuted,
+                    uncheckedTrackColor = GymuuBorder,
+                    disabledCheckedThumbColor = GymuuMuted,
+                    disabledCheckedTrackColor = GymuuBorder,
+                    disabledUncheckedThumbColor = GymuuMuted,
+                    disabledUncheckedTrackColor = GymuuBorder
                 )
             )
         }
 
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text("PATTERN", color = GymMuted, fontSize = 12.sp, letterSpacing = 2.sp)
+            Text("PATTERN", color = GymuuMuted, fontSize = 12.sp, letterSpacing = 2.sp)
             VibrationPattern.entries.chunked(2).forEach { rowOptions ->
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
                     rowOptions.forEach { option ->
@@ -245,8 +245,8 @@ private fun VibrationIntensityPanel(
                             colors = ButtonDefaults.buttonColors(
                                 containerColor = if (option == pattern) Color.White else Color(0xFF2A2A2A),
                                 contentColor = if (option == pattern) Color.Black else Color.White,
-                                disabledContainerColor = GymBorder,
-                                disabledContentColor = GymMuted
+                                disabledContainerColor = GymuuBorder,
+                                disabledContentColor = GymuuMuted
                             ),
                             shape = RoundedCornerShape(8.dp),
                             modifier = Modifier.weight(1f)

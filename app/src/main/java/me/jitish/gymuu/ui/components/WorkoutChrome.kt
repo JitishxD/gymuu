@@ -39,10 +39,10 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import me.jitish.gymuu.ui.theme.GymBorder
-import me.jitish.gymuu.ui.theme.GymCard
-import me.jitish.gymuu.ui.theme.GymDanger
-import me.jitish.gymuu.ui.theme.GymMuted
+import me.jitish.gymuu.ui.theme.GymuuBorder
+import me.jitish.gymuu.ui.theme.GymuuCard
+import me.jitish.gymuu.ui.theme.GymuuDanger
+import me.jitish.gymuu.ui.theme.GymuuMuted
 
 @Composable
 internal fun WorkoutHeader(
@@ -70,7 +70,7 @@ internal fun WorkoutHeader(
             Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.weight(1f, fill = false)) {
                 Text(
                     routineTitle.uppercase(),
-                    color = GymMuted,
+                    color = GymuuMuted,
                     fontSize = 12.sp,
                     letterSpacing = 1.sp,
                     textAlign = TextAlign.Center,
@@ -80,10 +80,10 @@ internal fun WorkoutHeader(
                 Text(title, color = Color.White, fontSize = 22.sp, letterSpacing = 3.sp, textAlign = TextAlign.Center, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
             Spacer(Modifier.width(8.dp))
-            Icon(Icons.Default.Edit, contentDescription = "Rename day", tint = GymMuted, modifier = Modifier.size(16.dp))
+            Icon(Icons.Default.Edit, contentDescription = "Rename day", tint = GymuuMuted, modifier = Modifier.size(16.dp))
         }
         CompactIconButton(onClick = onAddDay) { Icon(Icons.Default.AddCircleOutline, contentDescription = "Add day", tint = Color.White, modifier = Modifier.size(24.dp)) }
-        CompactIconButton(onClick = onRemoveDay) { Icon(Icons.Default.RemoveCircleOutline, contentDescription = "Remove day", tint = GymDanger, modifier = Modifier.size(24.dp)) }
+        CompactIconButton(onClick = onRemoveDay) { Icon(Icons.Default.RemoveCircleOutline, contentDescription = "Remove day", tint = GymuuDanger, modifier = Modifier.size(24.dp)) }
         CompactIconButton(onClick = onPrevious) { Icon(Icons.Default.ChevronLeft, contentDescription = "Previous day", tint = Color.White, modifier = Modifier.size(28.dp)) }
         CompactIconButton(onClick = onNext) { Icon(Icons.Default.ChevronRight, contentDescription = "Next day", tint = Color.White, modifier = Modifier.size(28.dp)) }
     }
@@ -106,13 +106,13 @@ internal fun SearchBox(query: String, onQueryChange: (String) -> Unit) {
             .fillMaxWidth()
             .height(70.dp)
             .clip(RoundedCornerShape(8.dp))
-            .background(GymCard)
-            .border(1.dp, GymBorder, RoundedCornerShape(8.dp))
+            .background(GymuuCard)
+            .border(1.dp, GymuuBorder, RoundedCornerShape(8.dp))
             .padding(horizontal = 18.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-        Icon(Icons.Default.Search, contentDescription = null, tint = GymMuted, modifier = Modifier.size(32.dp))
+        Icon(Icons.Default.Search, contentDescription = null, tint = GymuuMuted, modifier = Modifier.size(32.dp))
         BasicTextField(
             value = query,
             onValueChange = onQueryChange,
@@ -136,8 +136,8 @@ internal fun CategoryChip(label: String, selected: Boolean, onClick: () -> Unit)
             .height(44.dp)
             .clickable(onClick = onClick),
         shape = CircleShape,
-        color = if (selected) Color.White else GymCard,
-        border = BorderStroke(1.dp, if (selected) Color.White else GymBorder)
+        color = if (selected) Color.White else GymuuCard,
+        border = BorderStroke(1.dp, if (selected) Color.White else GymuuBorder)
     ) {
         Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(horizontal = 22.dp)) {
             Text(

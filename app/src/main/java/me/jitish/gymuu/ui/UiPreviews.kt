@@ -23,8 +23,8 @@ import me.jitish.gymuu.ui.components.CategoryChip
 import me.jitish.gymuu.ui.components.CreateExerciseDialog
 import me.jitish.gymuu.ui.components.DividerLine
 import me.jitish.gymuu.ui.components.EmptyState
-import me.jitish.gymuu.ui.components.GymFab
-import me.jitish.gymuu.ui.components.GymLogo
+import me.jitish.gymuu.ui.components.GymuuFab
+import me.jitish.gymuu.ui.components.GymuuLogo
 import me.jitish.gymuu.ui.components.RoutineDrawer
 import me.jitish.gymuu.ui.components.RoutineRow
 import me.jitish.gymuu.ui.components.SearchBox
@@ -32,7 +32,7 @@ import me.jitish.gymuu.ui.components.SectionHeading
 import me.jitish.gymuu.ui.components.TopTitleBar
 import me.jitish.gymuu.ui.exercise.CustomExerciseCard
 import me.jitish.gymuu.ui.exercise.ExerciseListCard
-import me.jitish.gymuu.ui.theme.GymBlack
+import me.jitish.gymuu.ui.theme.GymuuBlack
 import me.jitish.gymuu.ui.theme.GymuuTheme
 
 internal object PreviewData {
@@ -92,7 +92,7 @@ private fun PreviewFrame(content: @Composable () -> Unit) {
     GymuuTheme {
         Box(
             modifier = Modifier
-                .background(GymBlack)
+                .background(GymuuBlack)
                 .padding(16.dp)
         ) {
             content()
@@ -100,11 +100,11 @@ private fun PreviewFrame(content: @Composable () -> Unit) {
     }
 }
 
-@Preview(name = "Gym Logo", showBackground = true, backgroundColor = 0xFF000000)
+@Preview(name = "Gymuu Logo", showBackground = true, backgroundColor = 0xFF000000)
 @Composable
-private fun GymLogoPreview() {
+private fun GymuuLogoPreview() {
     PreviewFrame {
-        GymLogo()
+        GymuuLogo()
     }
 }
 
@@ -212,7 +212,7 @@ private fun SharedStatesPreview() {
             SectionHeading("MY ROUTINES")
             DividerLine()
             EmptyState("Add exercises to build this workout")
-            GymFab(onClick = {})
+            GymuuFab(onClick = {})
         }
     }
 }

@@ -39,11 +39,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import me.jitish.gymuu.R
 import me.jitish.gymuu.data.routine.Routine
-import me.jitish.gymuu.ui.theme.GymBlack
-import me.jitish.gymuu.ui.theme.GymBorder
-import me.jitish.gymuu.ui.theme.GymCard
-import me.jitish.gymuu.ui.theme.GymDanger
-import me.jitish.gymuu.ui.theme.GymMuted
+import me.jitish.gymuu.ui.theme.GymuuBlack
+import me.jitish.gymuu.ui.theme.GymuuBorder
+import me.jitish.gymuu.ui.theme.GymuuCard
+import me.jitish.gymuu.ui.theme.GymuuDanger
+import me.jitish.gymuu.ui.theme.GymuuMuted
 
 @Composable
 internal fun RoutineRow(routine: Routine, onOpen: () -> Unit, onEdit: () -> Unit, onDelete: () -> Unit) {
@@ -51,8 +51,8 @@ internal fun RoutineRow(routine: Routine, onOpen: () -> Unit, onEdit: () -> Unit
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(8.dp))
-            .background(GymCard)
-            .border(1.dp, GymBorder, RoundedCornerShape(8.dp))
+            .background(GymuuCard)
+            .border(1.dp, GymuuBorder, RoundedCornerShape(8.dp))
             .clickable(onClick = onOpen)
             .padding(horizontal = 16.dp, vertical = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -61,7 +61,7 @@ internal fun RoutineRow(routine: Routine, onOpen: () -> Unit, onEdit: () -> Unit
         Icon(Icons.Default.FitnessCenter, contentDescription = null, tint = Color.White, modifier = Modifier.size(22.dp))
         Text(routine.name, color = Color.White, fontSize = 19.sp, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
         CompactIconButton(onClick = onEdit) { Icon(Icons.Default.Edit, contentDescription = "Edit", tint = Color.White, modifier = Modifier.size(22.dp)) }
-        CompactIconButton(onClick = onDelete) { Icon(Icons.Default.DeleteOutline, contentDescription = "Delete", tint = GymDanger, modifier = Modifier.size(22.dp)) }
+        CompactIconButton(onClick = onDelete) { Icon(Icons.Default.DeleteOutline, contentDescription = "Delete", tint = GymuuDanger, modifier = Modifier.size(22.dp)) }
     }
 }
 
@@ -72,7 +72,7 @@ private fun DrawerAction(label: String, icon: ImageVector, onClick: () -> Unit) 
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(20.dp)
     ) {
-        Icon(icon, contentDescription = null, tint = GymMuted, modifier = Modifier.size(22.dp))
+        Icon(icon, contentDescription = null, tint = GymuuMuted, modifier = Modifier.size(22.dp))
         Text(label, color = Color(0xFFC8C8C8), fontSize = 20.sp)
     }
 }
@@ -84,7 +84,7 @@ internal fun RoutineDrawer(
     onSettingsClick: () -> Unit,
     onRoutineClick: (Routine) -> Unit
 ) {
-    ModalDrawerSheet(drawerContainerColor = GymBlack, drawerContentColor = Color.White, modifier = Modifier.fillMaxHeight().widthIn(max = 320.dp)) {
+    ModalDrawerSheet(drawerContainerColor = GymuuBlack, drawerContentColor = Color.White, modifier = Modifier.fillMaxHeight().widthIn(max = 320.dp)) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -127,7 +127,7 @@ internal fun RoutineDrawer(
             Spacer(Modifier.weight(1f))
             Text(
                 text = stringResource(R.string.drawer_credit),
-                color = GymMuted,
+                color = GymuuMuted,
                 fontSize = 13.sp,
                 modifier = Modifier.fillMaxWidth(),
                 textAlign = TextAlign.Center

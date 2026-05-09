@@ -18,14 +18,14 @@ import me.jitish.gymuu.data.exercise.Exercise
 import me.jitish.gymuu.data.routine.CustomExercise
 import me.jitish.gymuu.data.routine.RoutineExercise
 import me.jitish.gymuu.ui.components.toTitleCase
-import me.jitish.gymuu.ui.theme.GymCard
-import me.jitish.gymuu.ui.theme.GymMuted
+import me.jitish.gymuu.ui.theme.GymuuCard
+import me.jitish.gymuu.ui.theme.GymuuMuted
 
 @Composable
 internal fun ExerciseInfoDialog(exercise: Exercise, onDismiss: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = GymCard,
+        containerColor = GymuuCard,
         title = {
             SelectionContainer {
                 Text(exercise.name.toTitleCase(), color = Color.White, fontSize = 22.sp)
@@ -43,10 +43,10 @@ internal fun ExerciseInfoDialog(exercise: Exercise, onDismiss: () -> Unit) {
                     ExerciseInfoLine(label = "Equipment", value = exercise.equipments.joinToString(", "))
                     ExerciseInfoLine(label = "Target Muscles", value = exercise.targetMuscles.joinToString(", "))
                     ExerciseInfoLine(label = "Secondary", value = exercise.secondaryMuscles.joinToString(", "))
-                    Text("INSTRUCTIONS", color = GymMuted, fontSize = 13.sp, letterSpacing = 1.sp)
+                    Text("INSTRUCTIONS", color = GymuuMuted, fontSize = 13.sp, letterSpacing = 1.sp)
                     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         if (exercise.instructions.isEmpty()) {
-                            Text("No instructions available.", color = GymMuted, fontSize = 14.sp)
+                            Text("No instructions available.", color = GymuuMuted, fontSize = 14.sp)
                         } else {
                             exercise.instructions.forEachIndexed { index, step ->
                                 Text("${index + 1}. $step", color = Color.White, fontSize = 14.sp)
@@ -68,7 +68,7 @@ internal fun ExerciseInfoDialog(exercise: Exercise, onDismiss: () -> Unit) {
 internal fun CustomExerciseInfoDialog(exercise: CustomExercise, onDismiss: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = GymCard,
+        containerColor = GymuuCard,
         title = {
             SelectionContainer {
                 Text(exercise.name, color = Color.White, fontSize = 22.sp)
@@ -95,7 +95,7 @@ internal fun CustomExerciseInfoDialog(exercise: CustomExercise, onDismiss: () ->
 internal fun RoutineExerciseInfoDialog(exercise: RoutineExercise, onDismiss: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = GymCard,
+        containerColor = GymuuCard,
         title = {
             SelectionContainer {
                 Text(exercise.name.toTitleCase(), color = Color.White, fontSize = 22.sp)
@@ -123,7 +123,7 @@ internal fun RoutineExerciseInfoDialog(exercise: RoutineExercise, onDismiss: () 
 private fun ExerciseInfoLine(label: String, value: String) {
     val text = value.ifBlank { "-" }
     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-        Text(label.uppercase(), color = GymMuted, fontSize = 13.sp, letterSpacing = 1.sp)
+        Text(label.uppercase(), color = GymuuMuted, fontSize = 13.sp, letterSpacing = 1.sp)
         Text(text, color = Color.White, fontSize = 14.sp)
     }
 }

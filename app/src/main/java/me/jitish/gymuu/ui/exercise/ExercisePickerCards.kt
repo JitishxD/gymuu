@@ -34,10 +34,10 @@ import me.jitish.gymuu.data.exercise.Exercise
 import me.jitish.gymuu.data.routine.CustomExercise
 import me.jitish.gymuu.ui.components.CompactIconButton
 import me.jitish.gymuu.ui.components.toTitleCase
-import me.jitish.gymuu.ui.theme.GymBorder
-import me.jitish.gymuu.ui.theme.GymCard
-import me.jitish.gymuu.ui.theme.GymDanger
-import me.jitish.gymuu.ui.theme.GymMuted
+import me.jitish.gymuu.ui.theme.GymuuBorder
+import me.jitish.gymuu.ui.theme.GymuuCard
+import me.jitish.gymuu.ui.theme.GymuuDanger
+import me.jitish.gymuu.ui.theme.GymuuMuted
 
 @Composable
 internal fun ExerciseListCard(exercise: Exercise, selected: Boolean, onClick: () -> Unit, onLongClick: (() -> Unit)? = null) {
@@ -53,14 +53,14 @@ internal fun ExerciseListCard(exercise: Exercise, selected: Boolean, onClick: ()
             )
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(exercise.name.toTitleCase(), color = Color.White, fontSize = 22.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                Text("3 sets x 8-12 reps", color = GymMuted, fontSize = 15.sp)
+                Text("3 sets x 8-12 reps", color = GymuuMuted, fontSize = 15.sp)
             }
             if (selected) {
                 Box(Modifier.size(34.dp).clip(CircleShape).background(Color.White), contentAlignment = Alignment.Center) {
                     Icon(Icons.Default.Check, contentDescription = "Selected", tint = Color.Black, modifier = Modifier.size(24.dp))
                 }
             } else {
-                Icon(Icons.Default.ChevronRight, contentDescription = null, tint = GymMuted, modifier = Modifier.size(34.dp))
+                Icon(Icons.Default.ChevronRight, contentDescription = null, tint = GymuuMuted, modifier = Modifier.size(34.dp))
             }
         }
     }
@@ -83,16 +83,16 @@ internal fun CustomExerciseCard(exercise: CustomExercise, selected: Boolean, onC
             }
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(exercise.name, color = Color.White, fontSize = 22.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                Text("${exercise.sets} sets x ${exercise.reps} reps", color = GymMuted, fontSize = 15.sp)
+                Text("${exercise.sets} sets x ${exercise.reps} reps", color = GymuuMuted, fontSize = 15.sp)
             }
             CompactIconButton(onClick = onEdit) { Icon(Icons.Default.Edit, contentDescription = "Edit", tint = Color.White, modifier = Modifier.size(22.dp)) }
-            CompactIconButton(onClick = onDelete) { Icon(Icons.Default.DeleteOutline, contentDescription = "Delete", tint = GymDanger, modifier = Modifier.size(22.dp)) }
+            CompactIconButton(onClick = onDelete) { Icon(Icons.Default.DeleteOutline, contentDescription = "Delete", tint = GymuuDanger, modifier = Modifier.size(22.dp)) }
             if (selected) {
                 Box(Modifier.size(34.dp).clip(CircleShape).background(Color.White), contentAlignment = Alignment.Center) {
                     Icon(Icons.Default.Check, contentDescription = "Selected", tint = Color.Black, modifier = Modifier.size(24.dp))
                 }
             } else {
-                Icon(Icons.Default.ChevronRight, contentDescription = null, tint = GymMuted, modifier = Modifier.size(34.dp))
+                Icon(Icons.Default.ChevronRight, contentDescription = null, tint = GymuuMuted, modifier = Modifier.size(34.dp))
             }
         }
     }
@@ -106,8 +106,8 @@ private fun SelectableCard(selected: Boolean, onClick: () -> Unit, onLongClick: 
             .fillMaxWidth()
             .combinedClickable(onClick = onClick, onLongClick = onLongClick),
         shape = RoundedCornerShape(8.dp),
-        colors = CardDefaults.cardColors(containerColor = if (selected) Color(0xFF2B2B2B) else GymCard),
-        border = BorderStroke(if (selected) 2.dp else 1.dp, if (selected) Color.White else GymBorder)
+        colors = CardDefaults.cardColors(containerColor = if (selected) Color(0xFF2B2B2B) else GymuuCard),
+        border = BorderStroke(if (selected) 2.dp else 1.dp, if (selected) Color.White else GymuuBorder)
     ) {
         Box(modifier = Modifier.padding(16.dp)) {
             content()

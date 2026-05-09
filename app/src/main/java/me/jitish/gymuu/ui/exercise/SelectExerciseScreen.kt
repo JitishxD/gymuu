@@ -34,17 +34,17 @@ import kotlinx.coroutines.delay
 import me.jitish.gymuu.data.exercise.Exercise
 import me.jitish.gymuu.data.routine.CustomExercise
 import me.jitish.gymuu.ui.ExerciseCategory
-import me.jitish.gymuu.ui.GymUiState
-import me.jitish.gymuu.ui.GymViewModel
+import me.jitish.gymuu.ui.AppUiState
+import me.jitish.gymuu.ui.AppViewModel
 import me.jitish.gymuu.ui.components.CategoryChip
 import me.jitish.gymuu.ui.components.CreateExerciseDialog
 import me.jitish.gymuu.ui.components.EmptyState
-import me.jitish.gymuu.ui.components.GymFab
+import me.jitish.gymuu.ui.components.GymuuFab
 import me.jitish.gymuu.ui.components.SearchBox
 import me.jitish.gymuu.ui.components.SectionHeading
 import me.jitish.gymuu.ui.components.TopTitleBar
 import me.jitish.gymuu.ui.navigation.Routes
-import me.jitish.gymuu.ui.theme.GymBlack
+import me.jitish.gymuu.ui.theme.GymuuBlack
 
 private sealed interface ExerciseDialogState {
     data object Create : ExerciseDialogState
@@ -54,8 +54,8 @@ private sealed interface ExerciseDialogState {
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun SelectExerciseScreen(
-    state: GymUiState,
-    viewModel: GymViewModel,
+    state: AppUiState,
+    viewModel: AppViewModel,
     navController: NavHostController,
     routineId: String,
     dayId: String,
@@ -95,7 +95,7 @@ internal fun SelectExerciseScreen(
     BackHandler(onBack = navigateBackToDay)
 
     if (targetDay == null) {
-        Scaffold(containerColor = GymBlack) { padding ->
+        Scaffold(containerColor = GymuuBlack) { padding ->
             Column(
                 modifier = Modifier
                     .fillMaxSize()
@@ -158,10 +158,10 @@ internal fun SelectExerciseScreen(
     }
 
     Scaffold(
-        containerColor = GymBlack,
+        containerColor = GymuuBlack,
         floatingActionButton = {
             if (!isSwapMode) {
-                GymFab(onClick = { exerciseDialogState = ExerciseDialogState.Create })
+                GymuuFab(onClick = { exerciseDialogState = ExerciseDialogState.Create })
             }
         }
     ) { padding ->

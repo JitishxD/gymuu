@@ -61,11 +61,11 @@ import me.jitish.gymuu.ui.media.mediaAttachmentLabel
 import me.jitish.gymuu.ui.media.pickedMediaError
 import me.jitish.gymuu.ui.media.pickedMediaTypeError
 import me.jitish.gymuu.ui.media.webMediaLinkError
-import me.jitish.gymuu.ui.theme.GymBorder
-import me.jitish.gymuu.ui.theme.GymCard
-import me.jitish.gymuu.ui.theme.GymCardAlt
-import me.jitish.gymuu.ui.theme.GymDanger
-import me.jitish.gymuu.ui.theme.GymMuted
+import me.jitish.gymuu.ui.theme.GymuuBorder
+import me.jitish.gymuu.ui.theme.GymuuCard
+import me.jitish.gymuu.ui.theme.GymuuCardAlt
+import me.jitish.gymuu.ui.theme.GymuuDanger
+import me.jitish.gymuu.ui.theme.GymuuMuted
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -147,7 +147,7 @@ internal fun CreateExerciseDialog(initial: CustomExercise?, onDismiss: () -> Uni
         (selectedMediaUrl.isBlank() || selectedMediaMimeType.isNotBlank())
 
     Dialog(onDismissRequest = onDismiss) {
-        Surface(shape = RoundedCornerShape(28.dp), color = GymCard, border = BorderStroke(1.dp, GymBorder), modifier = Modifier.fillMaxWidth()) {
+        Surface(shape = RoundedCornerShape(28.dp), color = GymuuCard, border = BorderStroke(1.dp, GymuuBorder), modifier = Modifier.fillMaxWidth()) {
             Column(
                 Modifier
                     .padding(22.dp)
@@ -160,24 +160,24 @@ internal fun CreateExerciseDialog(initial: CustomExercise?, onDismiss: () -> Uni
                     fontSize = 24.sp,
                     fontWeight = FontWeight.SemiBold
                 )
-                GymInput(label = "NAME", value = name, onValueChange = { name = it }, placeholder = "e.g. Bench Press", autoFocus = true)
+                GymuuInput(label = "NAME", value = name, onValueChange = { name = it }, placeholder = "e.g. Bench Press", autoFocus = true)
                 Column {
-                    Text("SETS", color = GymMuted, fontSize = 14.sp, letterSpacing = 1.sp)
+                    Text("SETS", color = GymuuMuted, fontSize = 14.sp, letterSpacing = 1.sp)
                     Box {
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(58.dp)
                                 .clip(RoundedCornerShape(10.dp))
-                                .border(1.dp, GymBorder, RoundedCornerShape(10.dp))
+                                .border(1.dp, GymuuBorder, RoundedCornerShape(10.dp))
                                 .clickable { expanded = true }
                                 .padding(horizontal = 16.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(sets.toString(), color = Color.White, fontSize = 20.sp, modifier = Modifier.weight(1f))
-                            Icon(Icons.Default.ArrowDropDown, contentDescription = null, tint = GymMuted)
+                            Icon(Icons.Default.ArrowDropDown, contentDescription = null, tint = GymuuMuted)
                         }
-                        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }, modifier = Modifier.background(GymCardAlt)) {
+                        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }, modifier = Modifier.background(GymuuCardAlt)) {
                             (1..10).forEach { count ->
                                 DropdownMenuItem(text = { Text(count.toString(), color = Color.White) }, onClick = {
                                     sets = count
@@ -187,23 +187,23 @@ internal fun CreateExerciseDialog(initial: CustomExercise?, onDismiss: () -> Uni
                         }
                     }
                 }
-                GymInput(
+                GymuuInput(
                     label = "REPS",
                     value = reps,
                     onValueChange = { reps = it },
                     placeholder = "e.g. 10",
-                    trailing = { Icon(Icons.Default.SwapHoriz, contentDescription = null, tint = GymMuted) },
+                    trailing = { Icon(Icons.Default.SwapHoriz, contentDescription = null, tint = GymuuMuted) },
                     helper = "Press <-> to enter a range (e.g. 10-12)."
                 )
-                GymInput(
+                GymuuInput(
                     label = "REST (MIN)",
                     value = rest,
                     onValueChange = { rest = it },
                     placeholder = "e.g. 1:30 or 2",
-                    trailing = { Icon(Icons.Default.Timer, contentDescription = null, tint = GymMuted) }
+                    trailing = { Icon(Icons.Default.Timer, contentDescription = null, tint = GymuuMuted) }
                 )
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("MEDIA", color = GymMuted, fontSize = 14.sp, letterSpacing = 1.sp)
+                    Text("MEDIA", color = GymuuMuted, fontSize = 14.sp, letterSpacing = 1.sp)
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
                         MediaModeButton(
                             label = "UPLOAD",
@@ -230,7 +230,7 @@ internal fun CreateExerciseDialog(initial: CustomExercise?, onDismiss: () -> Uni
                         Surface(
                             shape = RoundedCornerShape(10.dp),
                             color = Color(0xFF151515),
-                            border = BorderStroke(1.dp, GymBorder),
+                            border = BorderStroke(1.dp, GymuuBorder),
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(58.dp)
@@ -245,13 +245,13 @@ internal fun CreateExerciseDialog(initial: CustomExercise?, onDismiss: () -> Uni
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(12.dp)
                             ) {
-                                Icon(Icons.Default.AttachFile, contentDescription = null, tint = GymMuted)
+                                Icon(Icons.Default.AttachFile, contentDescription = null, tint = GymuuMuted)
                                 Text(
                                     text = when {
                                         uploadedMediaUrl.isBlank() -> "CHOOSE FILE"
                                         else -> mediaAttachmentLabel(uploadedMediaUrl, uploadedMediaMimeType)
                                     },
-                                    color = if (uploadedMediaUrl.isBlank()) GymMuted else Color.White,
+                                    color = if (uploadedMediaUrl.isBlank()) GymuuMuted else Color.White,
                                     fontSize = 16.sp,
                                     letterSpacing = 1.sp,
                                     modifier = Modifier.weight(1f)
@@ -259,7 +259,7 @@ internal fun CreateExerciseDialog(initial: CustomExercise?, onDismiss: () -> Uni
                             }
                         }
                     } else {
-                        GymInput(
+                        GymuuInput(
                             label = "WEB LINK",
                             value = linkMediaUrl,
                             onValueChange = { value ->
@@ -270,15 +270,15 @@ internal fun CreateExerciseDialog(initial: CustomExercise?, onDismiss: () -> Uni
                                 mediaErrorMessage = webMediaLinkError(value, mimeType)
                             },
                             placeholder = "https://example.com/demo.mp4",
-                            trailing = { Icon(Icons.Default.Link, contentDescription = null, tint = GymMuted) }
+                            trailing = { Icon(Icons.Default.Link, contentDescription = null, tint = GymuuMuted) }
                         )
                     }
                     if (selectedMediaUrl.isNotBlank()) {
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Icon(Icons.Default.AttachFile, contentDescription = null, tint = GymMuted)
+                            Icon(Icons.Default.AttachFile, contentDescription = null, tint = GymuuMuted)
                             Text(
                                 mediaAttachmentLabel(selectedMediaUrl, selectedMediaMimeType),
-                                color = GymMuted,
+                                color = GymuuMuted,
                                 fontSize = 13.sp,
                                 letterSpacing = 1.sp,
                                 modifier = Modifier.weight(1f)
@@ -294,16 +294,16 @@ internal fun CreateExerciseDialog(initial: CustomExercise?, onDismiss: () -> Uni
                                 mediaRemoved = true
                                 mediaErrorMessage = null
                             }) {
-                                Icon(Icons.Default.Close, contentDescription = null, tint = GymMuted)
-                                Text("REMOVE", color = GymMuted, letterSpacing = 1.sp)
+                                Icon(Icons.Default.Close, contentDescription = null, tint = GymuuMuted)
+                                Text("REMOVE", color = GymuuMuted, letterSpacing = 1.sp)
                             }
                         }
                     }
                     if (validatingMedia) {
-                        Text("Checking video compatibility...", color = GymMuted, fontSize = 12.sp, lineHeight = 16.sp)
+                        Text("Checking video compatibility...", color = GymuuMuted, fontSize = 12.sp, lineHeight = 16.sp)
                     }
                     mediaErrorMessage?.let { message ->
-                        Text(message, color = GymDanger, fontSize = 12.sp, lineHeight = 16.sp)
+                        Text(message, color = GymuuDanger, fontSize = 12.sp, lineHeight = 16.sp)
                     }
                 }
                 Spacer(Modifier.height(16.dp))
@@ -321,7 +321,7 @@ internal fun CreateExerciseDialog(initial: CustomExercise?, onDismiss: () -> Uni
                                 mediaMimeType = selectedMediaMimeType.trim().takeIf { it.isNotBlank() }
                             )
                         )
-                    }) { Text("CONFIRM", color = if (mediaCanConfirm) Color.White else GymMuted, letterSpacing = 1.sp) }
+                    }) { Text("CONFIRM", color = if (mediaCanConfirm) Color.White else GymuuMuted, letterSpacing = 1.sp) }
                 }
             }
         }
@@ -333,7 +333,7 @@ private fun MediaModeButton(label: String, icon: ImageVector, selected: Boolean,
     Surface(
         shape = RoundedCornerShape(10.dp),
         color = if (selected) Color.White else Color(0xFF151515),
-        border = BorderStroke(1.dp, if (selected) Color.White else GymBorder),
+        border = BorderStroke(1.dp, if (selected) Color.White else GymuuBorder),
         modifier = modifier
             .height(46.dp)
             .clickable(onClick = onClick)

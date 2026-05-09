@@ -18,13 +18,13 @@ import androidx.compose.ui.unit.Density
 import androidx.core.content.ContextCompat
 import androidx.core.content.edit
 import androidx.core.net.toUri
-import me.jitish.gymuu.ui.GymViewModel
+import me.jitish.gymuu.ui.AppViewModel
 import me.jitish.gymuu.ui.exercise.RestTimerNotifier
 import me.jitish.gymuu.ui.navigation.GymuuApp
 import me.jitish.gymuu.ui.theme.GymuuTheme
 
 class MainActivity : ComponentActivity() {
-    private val viewModel: GymViewModel by viewModels()
+    private val viewModel: AppViewModel by viewModels()
     private val notificationPermissionLauncher = registerForActivityResult(ActivityResultContracts.RequestPermission()) {
         requestExactAlarmPermissionIfNeeded()
     }

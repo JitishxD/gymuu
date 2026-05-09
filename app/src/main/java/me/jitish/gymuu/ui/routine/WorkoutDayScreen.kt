@@ -35,10 +35,10 @@ import me.jitish.gymuu.data.exercise.Exercise
 import me.jitish.gymuu.data.routine.RoutineExercise
 import me.jitish.gymuu.data.routine.RoutineExercisePastePosition
 import me.jitish.gymuu.data.routine.WorkoutDay
-import me.jitish.gymuu.ui.GymUiState
-import me.jitish.gymuu.ui.GymViewModel
+import me.jitish.gymuu.ui.AppUiState
+import me.jitish.gymuu.ui.AppViewModel
 import me.jitish.gymuu.ui.components.EmptyState
-import me.jitish.gymuu.ui.components.GymFab
+import me.jitish.gymuu.ui.components.GymuuFab
 import me.jitish.gymuu.ui.components.NameDialog
 import me.jitish.gymuu.ui.components.RoutineDrawer
 import me.jitish.gymuu.ui.components.WorkoutHeader
@@ -47,12 +47,12 @@ import me.jitish.gymuu.ui.exercise.RoutineExerciseCard
 import me.jitish.gymuu.ui.exercise.RoutineExerciseInfoDialog
 import me.jitish.gymuu.ui.exercise.formatRestCountdown
 import me.jitish.gymuu.ui.navigation.Routes
-import me.jitish.gymuu.ui.theme.GymBlack
+import me.jitish.gymuu.ui.theme.GymuuBlack
 
 @Composable
 internal fun WorkoutDayScreen(
-    state: GymUiState,
-    viewModel: GymViewModel,
+    state: AppUiState,
+    viewModel: AppViewModel,
     navController: NavHostController,
     routineId: String,
     dayId: String
@@ -270,10 +270,10 @@ internal fun WorkoutDayScreen(
         }
     ) {
         Scaffold(
-            containerColor = GymBlack,
+            containerColor = GymuuBlack,
             floatingActionButton = {
                 if (routine != null && activeDay != null) {
-                    GymFab(onClick = { navController.navigate(Routes.select(routine.id, activeDay.id)) })
+                    GymuuFab(onClick = { navController.navigate(Routes.select(routine.id, activeDay.id)) })
                 }
             }
         ) { padding ->

@@ -32,8 +32,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import me.jitish.gymuu.R
-import me.jitish.gymuu.ui.theme.GymBorder
-import me.jitish.gymuu.ui.theme.GymMuted
+import me.jitish.gymuu.ui.theme.GymuuBorder
+import me.jitish.gymuu.ui.theme.GymuuMuted
 
 @Composable
 internal fun CompactIconButton(modifier: Modifier = Modifier, enabled: Boolean = true, onClick: () -> Unit, content: @Composable () -> Unit) {
@@ -43,7 +43,7 @@ internal fun CompactIconButton(modifier: Modifier = Modifier, enabled: Boolean =
 }
 
 @Composable
-internal fun GymLogo() {
+internal fun GymuuLogo() {
     Box(
         modifier = Modifier
             .size(92.dp)
@@ -74,7 +74,7 @@ internal fun AppIconBadge() {
 }
 
 @Composable
-internal fun GymFab(onClick: () -> Unit) {
+internal fun GymuuFab(onClick: () -> Unit) {
     FloatingActionButton(
         onClick = onClick,
         shape = CircleShape,
@@ -88,13 +88,13 @@ internal fun GymFab(onClick: () -> Unit) {
 
 @Composable
 internal fun SectionHeading(text: String) {
-    Text(text, color = GymMuted, fontSize = 16.sp, letterSpacing = 3.sp, fontWeight = FontWeight.Light)
+    Text(text, color = GymuuMuted, fontSize = 16.sp, letterSpacing = 3.sp, fontWeight = FontWeight.Light)
 }
 
 @Composable
 internal fun EmptyState(text: String) {
     Box(modifier = Modifier.fillMaxWidth().padding(36.dp), contentAlignment = Alignment.Center) {
-        Text(text, color = GymMuted, fontSize = 16.sp, textAlign = TextAlign.Center)
+        Text(text, color = GymuuMuted, fontSize = 16.sp, textAlign = TextAlign.Center)
     }
 }
 
@@ -105,7 +105,7 @@ internal fun DividerLine() {
 
 @Composable
 internal fun VerticalRule() {
-    Box(Modifier.height(48.dp).width(1.dp).background(GymBorder))
+    Box(Modifier.height(48.dp).width(1.dp).background(GymuuBorder))
 }
 
 internal fun String.toTitleCase(): String {

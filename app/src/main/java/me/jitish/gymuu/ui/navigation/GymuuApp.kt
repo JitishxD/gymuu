@@ -12,20 +12,20 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
-import me.jitish.gymuu.ui.GymViewModel
+import me.jitish.gymuu.ui.AppViewModel
 import me.jitish.gymuu.ui.exercise.SelectExerciseScreen
 import me.jitish.gymuu.ui.routine.RoutineLaunchScreen
 import me.jitish.gymuu.ui.routine.RoutineListScreen
 import me.jitish.gymuu.ui.routine.WorkoutDayScreen
 import me.jitish.gymuu.ui.settings.SettingsScreen
-import me.jitish.gymuu.ui.theme.GymBlack
+import me.jitish.gymuu.ui.theme.GymuuBlack
 
 @Composable
-fun GymuuApp(viewModel: GymViewModel) {
+fun GymuuApp(viewModel: AppViewModel) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val navController = rememberNavController()
 
-    Surface(color = GymBlack, modifier = Modifier.fillMaxSize()) {
+    Surface(color = GymuuBlack, modifier = Modifier.fillMaxSize()) {
         NavHost(navController = navController, startDestination = Routes.START) {
             composable(Routes.START) {
                 RoutineLaunchScreen(state = state, navController = navController)
