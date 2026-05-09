@@ -1,8 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+        xmlns:tools="http://schemas.android.com/tools"
         android:layout_width="match_parent"
-        android:layout_height="48dp"
+        android:layout_height="wrap_content"
         android:gravity="center_vertical"
+        android:minHeight="48dp"
         android:orientation="horizontal"
         android:paddingStart="2dp"
         android:paddingEnd="4dp">
@@ -11,7 +13,7 @@
             android:id="@+id/notification_rest_countdown"
             style="@style/TextAppearance.Compat.Notification.Title"
             android:layout_width="wrap_content"
-            android:layout_height="match_parent"
+            android:layout_height="wrap_content"
             android:ellipsize="none"
             android:gravity="center_vertical"
             android:includeFontPadding="false"
@@ -19,7 +21,8 @@
             android:text=""
             android:textColor="@android:color/black"
             android:textSize="31sp"
-            android:textStyle="bold" />
+            android:textStyle="bold"
+            tools:text="00:00" />
 
     <TextView
             android:layout_width="0dp"
@@ -28,25 +31,49 @@
             android:text="" />
 
     <ImageView
-            android:layout_width="18dp"
-            android:layout_height="18dp"
+            android:layout_width="22dp"
+            android:layout_height="22dp"
             android:layout_marginStart="12dp"
             android:contentDescription="@null"
             android:src="@drawable/ic_notification_hourglass" />
 
-    <TextView
-            android:id="@+id/notification_rest_label"
-            style="@style/TextAppearance.Compat.Notification"
+    <LinearLayout
             android:layout_width="wrap_content"
-            android:layout_height="match_parent"
+            android:layout_height="wrap_content"
             android:layout_marginStart="5dp"
-            android:ellipsize="end"
             android:gravity="center_vertical"
-            android:includeFontPadding="false"
-            android:maxLines="1"
-            android:text="@string/notification_rest_time_label"
-            android:textAllCaps="true"
-            android:textColor="#039BE5"
-            android:textSize="12sp"
-            android:textStyle="bold" />
+            android:orientation="vertical">
+
+        <TextView
+                android:id="@+id/notification_rest_label"
+                style="@style/TextAppearance.Compat.Notification"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:includeFontPadding="false"
+                android:maxLines="1"
+                android:text="@string/notification_rest_time_label"
+                android:textAllCaps="true"
+                android:textColor="#01579B"
+                android:textSize="13sp"
+                android:textStyle="bold"
+                tools:text="@string/notification_rest_complete_label" />
+
+        <TextView
+                android:id="@+id/notification_rest_hint"
+                style="@style/TextAppearance.Compat.Notification"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:includeFontPadding="false"
+                android:maxLines="1"
+                android:text=""
+                android:textAllCaps="true"
+                android:textColor="#424242"
+                android:textSize="12sp"
+                android:textStyle="bold"
+                android:visibility="gone"
+                tools:text="@string/notification_tap_to_stop_vibration_label"
+                tools:visibility="visible" />
+    </LinearLayout>
 </LinearLayout>

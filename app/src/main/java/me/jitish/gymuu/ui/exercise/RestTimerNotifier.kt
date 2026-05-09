@@ -10,6 +10,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
+import android.view.View
 import android.widget.RemoteViews
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
@@ -40,12 +41,15 @@ internal class RestTimerNotifier(context: Context) {
         cancelTimerComplete(timer)
 
         val remainingText = formatRestCountdown(remainingSeconds)
+        val label = appContext.getString(R.string.notification_rest_time_label)
         val notificationLayout = restTimerLayout(
             countdownText = remainingText,
-            label = appContext.getString(R.string.notification_rest_time_label),
+            label = label,
         )
         val notification = NotificationCompat.Builder(appContext, RUNNING_CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_rest_timer)
+            .setContentTitle(label)
+            .setContentText(remainingText)
             .setStyle(NotificationCompat.DecoratedCustomViewStyle())
             .setCustomContentView(notificationLayout)
             .setCustomBigContentView(notificationLayout)
@@ -63,39 +67,54 @@ internal class RestTimerNotifier(context: Context) {
         notificationManager.notify(timer.runningNotificationId(), notification)
     }
 
-    private fun restTimerLayout(countdownText: String, label: String): RemoteViews {
+    private fun restTimerLayout(countdownText: String, label: String, hint: String? = null): RemoteViews {
         return RemoteViews(appContext.packageName, R.layout.notification_rest_timer).apply {
             setTextViewText(R.id.notification_rest_countdown, countdownText)
             setTextViewText(R.id.notification_rest_label, label)
+            setTextViewText(R.id.notification_rest_hint, hint.orEmpty())
+            setViewVisibility(R.id.notification_rest_hint, if (hint.isNullOrBlank()) View.GONE else View.VISIBLE)
         }
     }
 
-    fun showTimerComplete(timer: RestTimerState) {
-        if (!canPostNotifications()) return
+    fun showTimerComplete(timer: RestTimerState, requiresAcknowledgement: Boolean = false): Boolean {
+        if (!canPostNotifications()) return false
 
         cancelRunningTimer(timer)
 
+        val completionLabel = appContext.getString(R.string.notification_rest_complete_label)
+        val completionHint = appContext.getString(
+            if (requiresAcknowledgement) {
+                R.string.notification_tap_to_stop_vibration_label
+            } else {
+                R.string.notification_tap_to_return_label
+            }
+        )
         val notificationLayout = restTimerLayout(
             countdownText = "00:00",
-            label = appContext.getString(R.string.notification_rest_complete_label),
+            label = completionLabel,
+            hint = completionHint
         )
         val notification = NotificationCompat.Builder(appContext, COMPLETE_CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_rest_timer)
+            .setContentTitle(completionLabel)
+            .setContentText(completionHint)
             .setStyle(NotificationCompat.DecoratedCustomViewStyle())
             .setCustomContentView(notificationLayout)
             .setCustomBigContentView(notificationLayout)
             .setCustomHeadsUpContentView(notificationLayout)
-            .setContentIntent(openAppIntent())
+            .setContentIntent(openAppIntent(timer.routineExerciseId))
             .setCategory(NotificationCompat.CATEGORY_ALARM)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setColor(REST_NOTIFICATION_COLOR)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
-            .setAutoCancel(true)
+            .setAutoCancel(!requiresAcknowledgement)
+            .setOngoing(requiresAcknowledgement)
             .setWhen(System.currentTimeMillis())
             .setShowWhen(true)
             .build()
 
         notificationManager.notify(timer.completeNotificationId(), notification)
+        return true
     }
 
     fun cancelRunningTimer(timer: RestTimerState) {
@@ -117,6 +136,15 @@ internal class RestTimerNotifier(context: Context) {
     fun cancelTimerNotifications(routineExerciseId: String) {
         cancelRunningTimer(routineExerciseId)
         cancelTimerComplete(routineExerciseId)
+    }
+
+    fun cancelRestCompleteAlert(routineExerciseId: String) {
+        cancelTimerComplete(routineExerciseId)
+        cancelRestCompleteVibration()
+    }
+
+    fun cancelRestCompleteVibration() {
+        cancelRestCompleteVibration(appContext)
     }
 
     fun scheduleTimerComplete(timer: RestTimerState) {
@@ -176,13 +204,17 @@ internal class RestTimerNotifier(context: Context) {
         notificationManager.createNotificationChannels(listOf(runningChannel, completeChannel))
     }
 
-    private fun openAppIntent(): PendingIntent {
+    private fun openAppIntent(routineExerciseId: String? = null): PendingIntent {
         val intent = Intent(appContext, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
+            if (routineExerciseId != null) {
+                action = ACTION_OPEN_REST_COMPLETE
+                putExtra(EXTRA_ROUTINE_EXERCISE_ID, routineExerciseId)
+            }
         }
         return PendingIntent.getActivity(
             appContext,
-            OPEN_APP_REQUEST_CODE,
+            routineExerciseId?.notificationRequestCode() ?: OPEN_APP_REQUEST_CODE,
             intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
@@ -258,6 +290,7 @@ internal class RestTimerNotifier(context: Context) {
     companion object {
         const val EXTRA_ROUTINE_EXERCISE_ID = "me.jitish.gymuu.extra.ROUTINE_EXERCISE_ID"
         const val ACTION_TIMER_COMPLETE = "me.jitish.gymuu.action.REST_TIMER_COMPLETE"
+        const val ACTION_OPEN_REST_COMPLETE = "me.jitish.gymuu.action.OPEN_REST_COMPLETE"
 
         private const val RUNNING_CHANNEL_ID = "rest_timer_running_lockscreen"
         private const val COMPLETE_CHANNEL_ID = "rest_timer_complete_app_controlled"

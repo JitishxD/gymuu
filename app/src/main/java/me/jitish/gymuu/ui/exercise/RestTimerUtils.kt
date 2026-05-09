@@ -11,6 +11,7 @@ import androidx.core.content.ContextCompat
 import me.jitish.gymuu.data.settings.AppSettingsRepository
 import me.jitish.gymuu.data.settings.VibrationIntensity
 import me.jitish.gymuu.data.settings.VibrationPattern
+import me.jitish.gymuu.data.settings.VibrationRepeatOptions
 
 private const val MAX_REST_SECONDS = 5999 // 99:59
 private const val DEFAULT_REST_SECONDS = 120 // 2:00
@@ -46,7 +47,9 @@ internal fun formatRestCountdown(totalSeconds: Int): String {
 internal fun triggerRestCompleteVibration(
     context: Context,
     previewIntensity: VibrationIntensity? = null,
-    previewPattern: VibrationPattern? = null
+    previewPattern: VibrationPattern? = null,
+    previewRepeatCount: Int? = null,
+    allowUntilConfirmed: Boolean = false
 ) {
     if (ContextCompat.checkSelfPermission(context, android.Manifest.permission.VIBRATE) != PackageManager.PERMISSION_GRANTED) {
         return
@@ -55,6 +58,8 @@ internal fun triggerRestCompleteVibration(
     val settingsRepository = AppSettingsRepository(context)
     val intensity = previewIntensity ?: settingsRepository.loadVibrationIntensity()
     val pattern = previewPattern ?: settingsRepository.loadVibrationPattern()
+    val repeatCount = previewRepeatCount ?: settingsRepository.loadVibrationRepeatCount()
+    val repeatUntilCancelled = allowUntilConfirmed && settingsRepository.loadVibrateUntilConfirmed()
     if (!intensity.enabled) return
 
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
@@ -62,7 +67,7 @@ internal fun triggerRestCompleteVibration(
         val vibrator = vibratorManager.defaultVibrator
         if (!vibrator.hasVibrator()) return
 
-        vibrator.playRestCompleteVibration(intensity, pattern)
+        vibrator.playRestCompleteVibration(intensity, pattern, repeatCount, repeatUntilCancelled)
         return
     }
 
@@ -70,13 +75,32 @@ internal fun triggerRestCompleteVibration(
     val vibrator = context.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator ?: return
     if (!vibrator.hasVibrator()) return
 
-    vibrator.playRestCompleteVibration(intensity, pattern)
+    vibrator.playRestCompleteVibration(intensity, pattern, repeatCount, repeatUntilCancelled)
 }
 
-private fun Vibrator.playRestCompleteVibration(intensity: VibrationIntensity, pattern: VibrationPattern) {
+internal fun cancelRestCompleteVibration(context: Context) {
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        val vibratorManager = context.getSystemService(VibratorManager::class.java) ?: return
+        vibratorManager.defaultVibrator.cancel()
+        return
+    }
+
+    @Suppress("DEPRECATION")
+    val vibrator = context.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator ?: return
+    vibrator.cancel()
+}
+
+private fun Vibrator.playRestCompleteVibration(
+    intensity: VibrationIntensity,
+    pattern: VibrationPattern,
+    repeatCount: Int,
+    repeatUntilCancelled: Boolean
+) {
     val effect = restCompleteEffect(
         intensity = intensity,
         pattern = pattern,
+        repeatCount = repeatCount,
+        repeatUntilCancelled = repeatUntilCancelled,
         amplitudeControlAvailable = hasAmplitudeControl()
     )
 
@@ -90,26 +114,50 @@ private fun Vibrator.playRestCompleteVibration(intensity: VibrationIntensity, pa
 private fun restCompleteEffect(
     intensity: VibrationIntensity,
     pattern: VibrationPattern,
+    repeatCount: Int,
+    repeatUntilCancelled: Boolean,
     amplitudeControlAvailable: Boolean
 ): VibrationEffect {
-    val amplitude = if (amplitudeControlAvailable) intensity.amplitude else VibrationEffect.DEFAULT_AMPLITUDE
-    return when (pattern) {
-        VibrationPattern.SHORT -> VibrationEffect.createOneShot(350, amplitude)
-        VibrationPattern.LONG -> VibrationEffect.createOneShot(1_000, amplitude)
-        VibrationPattern.DOUBLE -> waveformEffect(longArrayOf(0, 250, 130, 250), intensity, amplitudeControlAvailable)
-        VibrationPattern.TRIPLE -> waveformEffect(longArrayOf(0, 260, 140, 260, 140, 360), intensity, amplitudeControlAvailable)
+    val timings = repeatedPatternTimings(
+        pattern = pattern,
+        repeatCount = if (repeatUntilCancelled) 1 else repeatCount
+    )
+    val repeatIndex = if (repeatUntilCancelled) 0 else -1
+    return waveformEffect(timings, intensity, amplitudeControlAvailable, repeatIndex)
+}
+
+private fun repeatedPatternTimings(pattern: VibrationPattern, repeatCount: Int): LongArray {
+    val basePattern = when (pattern) {
+        VibrationPattern.SHORT -> longArrayOf(0, 350)
+        VibrationPattern.LONG -> longArrayOf(0, 1_000)
+        VibrationPattern.DOUBLE -> longArrayOf(0, 250, 130, 250)
+        VibrationPattern.TRIPLE -> longArrayOf(0, 260, 140, 260, 140, 360)
     }
+    val sanitizedRepeatCount = VibrationRepeatOptions.sanitize(repeatCount)
+    if (sanitizedRepeatCount == 1) return basePattern
+
+    val timings = mutableListOf<Long>()
+    repeat(sanitizedRepeatCount) { index ->
+        if (index == 0) {
+            timings.addAll(basePattern.toList())
+        } else {
+            timings.add(REPEAT_GAP_MILLIS)
+            timings.addAll(basePattern.drop(1))
+        }
+    }
+    return timings.toLongArray()
 }
 
 private fun waveformEffect(
     pattern: LongArray,
     intensity: VibrationIntensity,
-    amplitudeControlAvailable: Boolean
+    amplitudeControlAvailable: Boolean,
+    repeatIndex: Int
 ): VibrationEffect {
     return if (amplitudeControlAvailable) {
-        VibrationEffect.createWaveform(pattern, amplitudesFor(pattern, intensity), -1)
+        VibrationEffect.createWaveform(pattern, amplitudesFor(pattern, intensity), repeatIndex)
     } else {
-        VibrationEffect.createWaveform(pattern, -1)
+        VibrationEffect.createWaveform(pattern, repeatIndex)
     }
 }
 
@@ -118,3 +166,5 @@ private fun amplitudesFor(pattern: LongArray, intensity: VibrationIntensity): In
         if (index % 2 == 1) intensity.amplitude else 0
     }
 }
+
+private const val REPEAT_GAP_MILLIS = 300L

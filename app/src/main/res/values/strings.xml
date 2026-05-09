@@ -2,5 +2,7 @@
     <string name="app_name">Gymuu</string>
     <string name="notification_rest_time_label">REST TIME</string>
     <string name="notification_rest_complete_label">REST DONE</string>
+    <string name="notification_tap_to_return_label">Tap to return</string>
+    <string name="notification_tap_to_stop_vibration_label">Tap to stop vibration</string>
     <string name="drawer_credit">Made with ❤️ by Jitish.</string>
 </resources>

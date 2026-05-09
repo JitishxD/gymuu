@@ -30,3 +30,33 @@ enum class VibrationIntensity(
         }
     }
 }
+
+enum class VibrationPattern(
+    val storageValue: String,
+    val label: String,
+    val description: String
+) {
+    SHORT("short", "Short", "Quick single buzz"),
+    LONG("long", "Long", "One continuous buzz"),
+    DOUBLE("double", "Double", "Two alert pulses"),
+    TRIPLE("triple", "Triple", "Three alert pulses");
+
+    companion object {
+        val DEFAULT = LONG
+
+        fun fromStorage(value: String?): VibrationPattern {
+            return entries.firstOrNull { it.storageValue == value } ?: DEFAULT
+        }
+    }
+}
+
+object VibrationRepeatOptions {
+    const val DEFAULT = 1
+    const val MIN = 1
+    const val MAX = 5
+    val OPTIONS = listOf(1, 2, 3, 5)
+
+    fun sanitize(value: Int): Int {
+        return value.coerceIn(MIN, MAX)
+    }
+}

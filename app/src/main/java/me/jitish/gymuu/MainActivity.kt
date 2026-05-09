@@ -19,6 +19,7 @@ import androidx.core.content.ContextCompat
 import androidx.core.content.edit
 import androidx.core.net.toUri
 import me.jitish.gymuu.ui.GymViewModel
+import me.jitish.gymuu.ui.exercise.RestTimerNotifier
 import me.jitish.gymuu.ui.navigation.GymuuApp
 import me.jitish.gymuu.ui.theme.GymuuTheme
 
@@ -30,6 +31,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        handleRestCompleteNotificationIntent(intent)
         enableEdgeToEdge()
         if (!requestNotificationPermissionIfNeeded()) {
             requestExactAlarmPermissionIfNeeded()
@@ -49,6 +51,12 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleRestCompleteNotificationIntent(intent)
+    }
+
     override fun onStart() {
         super.onStart()
         viewModel.onAppForegroundChanged(true)
@@ -57,6 +65,16 @@ class MainActivity : ComponentActivity() {
     override fun onStop() {
         viewModel.onAppForegroundChanged(false)
         super.onStop()
+    }
+
+    private fun handleRestCompleteNotificationIntent(intent: Intent?) {
+        if (intent?.action != RestTimerNotifier.ACTION_OPEN_REST_COMPLETE) return
+
+        val routineExerciseId = intent.getStringExtra(RestTimerNotifier.EXTRA_ROUTINE_EXERCISE_ID)
+            ?.takeIf { it.isNotBlank() }
+            ?: return
+
+        RestTimerNotifier(this).cancelRestCompleteAlert(routineExerciseId)
     }
 
     private fun requestNotificationPermissionIfNeeded(): Boolean {

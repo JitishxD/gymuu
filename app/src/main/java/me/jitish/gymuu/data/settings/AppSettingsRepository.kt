@@ -14,6 +14,12 @@ class AppSettingsRepository(context: Context) {
     private val _vibrationPattern = MutableStateFlow(loadVibrationPattern())
     val vibrationPattern: StateFlow<VibrationPattern> = _vibrationPattern
 
+    private val _vibrationRepeatCount = MutableStateFlow(loadVibrationRepeatCount())
+    val vibrationRepeatCount: StateFlow<Int> = _vibrationRepeatCount
+
+    private val _vibrateUntilConfirmed = MutableStateFlow(loadVibrateUntilConfirmed())
+    val vibrateUntilConfirmed: StateFlow<Boolean> = _vibrateUntilConfirmed
+
     fun updateVibrationIntensity(intensity: VibrationIntensity) {
         if (_vibrationIntensity.value == intensity) return
 
@@ -32,6 +38,25 @@ class AppSettingsRepository(context: Context) {
         _vibrationPattern.value = pattern
     }
 
+    fun updateVibrationRepeatCount(count: Int) {
+        val sanitizedCount = VibrationRepeatOptions.sanitize(count)
+        if (_vibrationRepeatCount.value == sanitizedCount) return
+
+        prefs.edit {
+            putInt(VIBRATION_REPEAT_COUNT_KEY, sanitizedCount)
+        }
+        _vibrationRepeatCount.value = sanitizedCount
+    }
+
+    fun updateVibrateUntilConfirmed(enabled: Boolean) {
+        if (_vibrateUntilConfirmed.value == enabled) return
+
+        prefs.edit {
+            putBoolean(VIBRATE_UNTIL_CONFIRMED_KEY, enabled)
+        }
+        _vibrateUntilConfirmed.value = enabled
+    }
+
     fun loadVibrationIntensity(): VibrationIntensity {
         return VibrationIntensity.fromStorage(prefs.getString(VIBRATION_INTENSITY_KEY, null))
     }
@@ -40,9 +65,21 @@ class AppSettingsRepository(context: Context) {
         return VibrationPattern.fromStorage(prefs.getString(VIBRATION_PATTERN_KEY, null))
     }
 
+    fun loadVibrationRepeatCount(): Int {
+        return VibrationRepeatOptions.sanitize(
+            prefs.getInt(VIBRATION_REPEAT_COUNT_KEY, VibrationRepeatOptions.DEFAULT)
+        )
+    }
+
+    fun loadVibrateUntilConfirmed(): Boolean {
+        return prefs.getBoolean(VIBRATE_UNTIL_CONFIRMED_KEY, false)
+    }
+
     private companion object {
         const val PREFS_NAME = "gymuu_app_settings"
         const val VIBRATION_INTENSITY_KEY = "vibration_intensity"
         const val VIBRATION_PATTERN_KEY = "vibration_pattern"
+        const val VIBRATION_REPEAT_COUNT_KEY = "vibration_repeat_count"
+        const val VIBRATE_UNTIL_CONFIRMED_KEY = "vibrate_until_confirmed"
     }
 }

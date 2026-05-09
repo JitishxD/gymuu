@@ -20,6 +20,7 @@ import me.jitish.gymuu.data.exercise.ExerciseRepository
 import me.jitish.gymuu.data.settings.AppSettingsRepository
 import me.jitish.gymuu.data.settings.VibrationIntensity
 import me.jitish.gymuu.data.settings.VibrationPattern
+import me.jitish.gymuu.data.settings.VibrationRepeatOptions
 import me.jitish.gymuu.data.routine.CreateExerciseDraft
 import me.jitish.gymuu.data.routine.CustomExercise
 import me.jitish.gymuu.data.routine.Routine
@@ -68,12 +69,24 @@ class GymViewModel(application: Application) : AndroidViewModel(application) {
         _restTimers,
         lastWorkoutRoute,
         combine(
-            settingsRepository.vibrationIntensity,
-            settingsRepository.vibrationPattern
-        ) { vibrationIntensity, vibrationPattern ->
+            combine(
+                settingsRepository.vibrationIntensity,
+                settingsRepository.vibrationPattern
+            ) { vibrationIntensity, vibrationPattern ->
+                vibrationIntensity to vibrationPattern
+            },
+            combine(
+                settingsRepository.vibrationRepeatCount,
+                settingsRepository.vibrateUntilConfirmed
+            ) { vibrationRepeatCount, vibrateUntilConfirmed ->
+                vibrationRepeatCount to vibrateUntilConfirmed
+            }
+        ) { vibration, repeat ->
             AppSettingsState(
-                vibrationIntensity = vibrationIntensity,
-                vibrationPattern = vibrationPattern
+                vibrationIntensity = vibration.first,
+                vibrationPattern = vibration.second,
+                vibrationRepeatCount = repeat.first,
+                vibrateUntilConfirmed = repeat.second
             )
         }
     ) { state, copiedExercises, restTimers, savedRoute, settings ->
@@ -82,7 +95,9 @@ class GymViewModel(application: Application) : AndroidViewModel(application) {
             restTimers = restTimers,
             lastWorkoutRoute = savedRoute,
             vibrationIntensity = settings.vibrationIntensity,
-            vibrationPattern = settings.vibrationPattern
+            vibrationPattern = settings.vibrationPattern,
+            vibrationRepeatCount = settings.vibrationRepeatCount,
+            vibrateUntilConfirmed = settings.vibrateUntilConfirmed
         )
     }.stateIn(
         scope = viewModelScope,
@@ -104,6 +119,7 @@ class GymViewModel(application: Application) : AndroidViewModel(application) {
         appInForeground.value = inForeground
         val timers = _restTimers.value.values
         if (inForeground) {
+            restTimerNotifier.cancelRestCompleteVibration()
             timers.forEach(restTimerNotifier::cancelRunningTimer)
         } else {
             timers.forEach(restTimerNotifier::showRunningTimer)
@@ -208,11 +224,17 @@ class GymViewModel(application: Application) : AndroidViewModel(application) {
         restTimerNotifier.cancelScheduledTimer(timer)
         restTimerNotifier.cancelRunningTimer(timer)
 
-        if (!appInForeground.value && alarmStillPending) {
-            restTimerNotifier.showTimerComplete(timer)
-        }
+        val completionNotificationShown = !appInForeground.value &&
+            alarmStillPending &&
+            restTimerNotifier.showTimerComplete(
+                timer = timer,
+                requiresAcknowledgement = settingsRepository.loadVibrateUntilConfirmed()
+            )
         if (appInForeground.value || alarmStillPending) {
-            triggerRestCompleteVibration(getApplication())
+            triggerRestCompleteVibration(
+                context = getApplication(),
+                allowUntilConfirmed = completionNotificationShown
+            )
         }
     }
 
@@ -331,11 +353,14 @@ class GymViewModel(application: Application) : AndroidViewModel(application) {
     fun importRoutineBackup(json: String): Result<String> = routineRepository.importBackup(json)
     fun updateVibrationIntensity(intensity: VibrationIntensity) = settingsRepository.updateVibrationIntensity(intensity)
     fun updateVibrationPattern(pattern: VibrationPattern) = settingsRepository.updateVibrationPattern(pattern)
+    fun updateVibrationRepeatCount(count: Int) = settingsRepository.updateVibrationRepeatCount(count)
+    fun updateVibrateUntilConfirmed(enabled: Boolean) = settingsRepository.updateVibrateUntilConfirmed(enabled)
     fun previewRestCompleteVibration(
         intensity: VibrationIntensity = settingsRepository.vibrationIntensity.value,
-        pattern: VibrationPattern = settingsRepository.vibrationPattern.value
+        pattern: VibrationPattern = settingsRepository.vibrationPattern.value,
+        repeatCount: Int = settingsRepository.vibrationRepeatCount.value
     ) {
-        triggerRestCompleteVibration(getApplication(), intensity, pattern)
+        triggerRestCompleteVibration(getApplication(), intensity, pattern, repeatCount)
     }
 
     override fun onCleared() {
@@ -385,7 +410,9 @@ data class GymUiState(
     val restTimers: Map<String, RestTimerState> = emptyMap(),
     val lastWorkoutRoute: LastWorkoutRoute? = null,
     val vibrationIntensity: VibrationIntensity = VibrationIntensity.DEFAULT,
-    val vibrationPattern: VibrationPattern = VibrationPattern.DEFAULT
+    val vibrationPattern: VibrationPattern = VibrationPattern.DEFAULT,
+    val vibrationRepeatCount: Int = VibrationRepeatOptions.DEFAULT,
+    val vibrateUntilConfirmed: Boolean = false
 ) {
     fun routine(routineId: String): Routine? = routines.firstOrNull { it.id == routineId }
     fun day(routineId: String, dayId: String): WorkoutDay? = routine(routineId)?.days?.firstOrNull { it.id == dayId }
@@ -450,7 +477,9 @@ data class GymUiState(
 
 private data class AppSettingsState(
     val vibrationIntensity: VibrationIntensity,
-    val vibrationPattern: VibrationPattern
+    val vibrationPattern: VibrationPattern,
+    val vibrationRepeatCount: Int,
+    val vibrateUntilConfirmed: Boolean
 )
 
 enum class ExerciseCategory(val label: String) {

@@ -20,6 +20,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -33,6 +35,7 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import me.jitish.gymuu.data.settings.VibrationIntensity
 import me.jitish.gymuu.data.settings.VibrationPattern
+import me.jitish.gymuu.data.settings.VibrationRepeatOptions
 import me.jitish.gymuu.ui.GymUiState
 import me.jitish.gymuu.ui.GymViewModel
 import me.jitish.gymuu.ui.components.SectionHeading
@@ -72,8 +75,12 @@ internal fun SettingsScreen(
                 VibrationIntensityPanel(
                     intensity = state.vibrationIntensity,
                     pattern = state.vibrationPattern,
+                    repeatCount = state.vibrationRepeatCount,
+                    vibrateUntilConfirmed = state.vibrateUntilConfirmed,
                     onIntensityChange = viewModel::updateVibrationIntensity,
                     onPatternChange = viewModel::updateVibrationPattern,
+                    onRepeatCountChange = viewModel::updateVibrationRepeatCount,
+                    onVibrateUntilConfirmedChange = viewModel::updateVibrateUntilConfirmed,
                     onPreview = viewModel::previewRestCompleteVibration
                 )
             }
@@ -85,9 +92,13 @@ internal fun SettingsScreen(
 private fun VibrationIntensityPanel(
     intensity: VibrationIntensity,
     pattern: VibrationPattern,
+    repeatCount: Int,
+    vibrateUntilConfirmed: Boolean,
     onIntensityChange: (VibrationIntensity) -> Unit,
     onPatternChange: (VibrationPattern) -> Unit,
-    onPreview: (VibrationIntensity, VibrationPattern) -> Unit
+    onRepeatCountChange: (Int) -> Unit,
+    onVibrateUntilConfirmedChange: (Boolean) -> Unit,
+    onPreview: (VibrationIntensity, VibrationPattern, Int) -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -108,7 +119,7 @@ private fun VibrationIntensityPanel(
                 Text("Rest complete", color = GymMuted, fontSize = 14.sp, letterSpacing = 1.sp)
             }
             Text(
-                text = "${intensity.label.uppercase()} / ${pattern.label.uppercase()}",
+                text = "${intensity.label.uppercase()} / ${pattern.label.uppercase()} / ${repeatCount}X",
                 color = Color.Black,
                 fontSize = 12.sp,
                 fontWeight = FontWeight.SemiBold,
@@ -149,7 +160,7 @@ private fun VibrationIntensityPanel(
         Spacer(Modifier.height(2.dp))
 
         Button(
-            onClick = { onPreview(intensity, pattern) },
+            onClick = { onPreview(intensity, pattern, repeatCount) },
             enabled = intensity.enabled,
             colors = ButtonDefaults.buttonColors(
                 containerColor = Color.White,
@@ -162,10 +173,61 @@ private fun VibrationIntensityPanel(
         ) {
             Icon(Icons.Default.Vibration, contentDescription = null)
             Text(
-                "TEST ${pattern.label.uppercase()}",
+                "TEST ${pattern.label.uppercase()} ${repeatCount}X",
                 fontWeight = FontWeight.SemiBold,
                 letterSpacing = 1.sp,
                 modifier = Modifier.padding(start = 8.dp)
+            )
+        }
+
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text("REPEATS", color = GymMuted, fontSize = 12.sp, letterSpacing = 2.sp)
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                VibrationRepeatOptions.OPTIONS.forEach { option ->
+                    Button(
+                        onClick = {
+                            onRepeatCountChange(option)
+                            onPreview(intensity, pattern, option)
+                        },
+                        enabled = intensity.enabled,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (option == repeatCount) Color.White else Color(0xFF2A2A2A),
+                            contentColor = if (option == repeatCount) Color.Black else Color.White,
+                            disabledContainerColor = GymBorder,
+                            disabledContentColor = GymMuted
+                        ),
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("${option}X", fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
+                    }
+                }
+            }
+        }
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.weight(1f)) {
+                Text("Until confirmed", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+                Text("Background alert", color = GymMuted, fontSize = 13.sp, letterSpacing = 1.sp)
+            }
+            Switch(
+                checked = vibrateUntilConfirmed,
+                onCheckedChange = onVibrateUntilConfirmedChange,
+                enabled = intensity.enabled,
+                colors = SwitchDefaults.colors(
+                    checkedThumbColor = Color.Black,
+                    checkedTrackColor = Color.White,
+                    uncheckedThumbColor = GymMuted,
+                    uncheckedTrackColor = GymBorder,
+                    disabledCheckedThumbColor = GymMuted,
+                    disabledCheckedTrackColor = GymBorder,
+                    disabledUncheckedThumbColor = GymMuted,
+                    disabledUncheckedTrackColor = GymBorder
+                )
             )
         }
 
@@ -177,7 +239,7 @@ private fun VibrationIntensityPanel(
                         Button(
                             onClick = {
                                 onPatternChange(option)
-                                onPreview(intensity, option)
+                                onPreview(intensity, option, repeatCount)
                             },
                             enabled = intensity.enabled,
                             colors = ButtonDefaults.buttonColors(
