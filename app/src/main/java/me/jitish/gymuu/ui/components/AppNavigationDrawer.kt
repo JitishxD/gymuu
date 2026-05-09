@@ -78,7 +78,7 @@ private fun DrawerAction(label: String, icon: ImageVector, onClick: () -> Unit) 
 }
 
 @Composable
-internal fun RoutineDrawer(
+internal fun AppNavigationDrawer(
     routines: List<Routine>,
     onManageRoutines: () -> Unit,
     onSettingsClick: () -> Unit,

@@ -25,7 +25,7 @@ import me.jitish.gymuu.ui.components.DividerLine
 import me.jitish.gymuu.ui.components.EmptyState
 import me.jitish.gymuu.ui.components.GymuuFab
 import me.jitish.gymuu.ui.components.GymuuLogo
-import me.jitish.gymuu.ui.components.RoutineDrawer
+import me.jitish.gymuu.ui.components.AppNavigationDrawer
 import me.jitish.gymuu.ui.components.RoutineRow
 import me.jitish.gymuu.ui.components.SearchBox
 import me.jitish.gymuu.ui.components.SectionHeading
@@ -123,10 +123,10 @@ private fun RoutineRowPreview() {
 
 @Preview(name = "Routine Drawer", widthDp = 360, heightDp = 640, showBackground = true, backgroundColor = 0xFF000000)
 @Composable
-private fun RoutineDrawerPreview() {
+private fun AppNavigationDrawerPreview() {
     PreviewFrame {
         Box(modifier = Modifier.widthIn(max = 320.dp)) {
-            RoutineDrawer(
+            AppNavigationDrawer(
                 routines = PreviewData.routines,
                 onManageRoutines = {},
                 onSettingsClick = {},

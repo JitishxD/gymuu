@@ -40,7 +40,7 @@ import me.jitish.gymuu.ui.AppViewModel
 import me.jitish.gymuu.ui.components.EmptyState
 import me.jitish.gymuu.ui.components.GymuuFab
 import me.jitish.gymuu.ui.components.NameDialog
-import me.jitish.gymuu.ui.components.RoutineDrawer
+import me.jitish.gymuu.ui.components.AppNavigationDrawer
 import me.jitish.gymuu.ui.components.WorkoutHeader
 import me.jitish.gymuu.ui.exercise.ExerciseInfoDialog
 import me.jitish.gymuu.ui.exercise.RoutineExerciseCard
@@ -246,7 +246,7 @@ internal fun WorkoutDayScreen(
     ModalNavigationDrawer(
         drawerState = drawerState,
         drawerContent = {
-            RoutineDrawer(
+            AppNavigationDrawer(
                 routines = state.routines,
                 onManageRoutines = {
                     navController.navigate(Routes.ROUTINES) {
