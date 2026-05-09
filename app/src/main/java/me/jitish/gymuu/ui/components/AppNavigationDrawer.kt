@@ -1,5 +1,8 @@
 package me.jitish.gymuu.ui.components
 
+import android.content.Context
+import android.content.pm.PackageManager
+import android.os.Build
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -26,10 +29,12 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -84,6 +89,9 @@ internal fun AppNavigationDrawer(
     onSettingsClick: () -> Unit,
     onRoutineClick: (Routine) -> Unit
 ) {
+    val context = LocalContext.current
+    val appVersionName = remember(context) { getAppVersionName(context) }
+
     ModalDrawerSheet(drawerContainerColor = GymuuBlack, drawerContentColor = Color.White, modifier = Modifier.fillMaxHeight().widthIn(max = 320.dp)) {
         Column(
             modifier = Modifier
@@ -125,13 +133,41 @@ internal fun AppNavigationDrawer(
                 }
             }
             Spacer(Modifier.weight(1f))
-            Text(
-                text = stringResource(R.string.drawer_credit),
-                color = GymuuMuted,
-                fontSize = 13.sp,
+            Column(
                 modifier = Modifier.fillMaxWidth(),
-                textAlign = TextAlign.Center
-            )
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Text(
+                    text = stringResource(R.string.drawer_credit),
+                    color = GymuuMuted,
+                    fontSize = 13.sp,
+                    textAlign = TextAlign.Center
+                )
+                appVersionName?.let { versionName ->
+                    Text(
+                        text = stringResource(R.string.drawer_app_version, versionName),
+                        color = GymuuMuted,
+                        fontSize = 12.sp,
+                        textAlign = TextAlign.Center
+                    )
+                }
+            }
         }
     }
+}
+
+private fun getAppVersionName(context: Context): String? {
+    return runCatching {
+        val packageInfo = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            context.packageManager.getPackageInfo(
+                context.packageName,
+                PackageManager.PackageInfoFlags.of(0)
+            )
+        } else {
+            @Suppress("DEPRECATION")
+            context.packageManager.getPackageInfo(context.packageName, 0)
+        }
+        packageInfo.versionName
+    }.getOrNull()
 }
