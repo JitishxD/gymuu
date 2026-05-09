@@ -91,8 +91,6 @@ internal class RestTimerNotifier(context: Context) {
             .setColor(REST_NOTIFICATION_COLOR)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setAutoCancel(true)
-            .setVibrate(REST_COMPLETE_VIBRATION_PATTERN)
-            .setDefaults(NotificationCompat.DEFAULT_VIBRATE)
             .setWhen(System.currentTimeMillis())
             .setShowWhen(true)
             .build()
@@ -171,8 +169,7 @@ internal class RestTimerNotifier(context: Context) {
         ).apply {
             description = "Alerts when a background rest timer finishes."
             setSound(null, null)
-            enableVibration(true)
-            vibrationPattern = REST_COMPLETE_VIBRATION_PATTERN
+            enableVibration(false)
             lockscreenVisibility = Notification.VISIBILITY_PUBLIC
         }
 
@@ -263,7 +260,7 @@ internal class RestTimerNotifier(context: Context) {
         const val ACTION_TIMER_COMPLETE = "me.jitish.gymuu.action.REST_TIMER_COMPLETE"
 
         private const val RUNNING_CHANNEL_ID = "rest_timer_running_lockscreen"
-        private const val COMPLETE_CHANNEL_ID = "rest_timer_complete"
+        private const val COMPLETE_CHANNEL_ID = "rest_timer_complete_app_controlled"
         private const val OPEN_APP_REQUEST_CODE = 2101
         private const val REST_NOTIFICATION_COLOR = 0xFF4CAF50.toInt()
         private const val RUNNING_NOTIFICATION_ID_BASE = 7_000

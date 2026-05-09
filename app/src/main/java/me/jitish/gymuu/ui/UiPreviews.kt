@@ -129,6 +129,7 @@ private fun RoutineDrawerPreview() {
             RoutineDrawer(
                 routines = PreviewData.routines,
                 onManageRoutines = {},
+                onSettingsClick = {},
                 onRoutineClick = {}
             )
         }

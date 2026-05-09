@@ -17,6 +17,9 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import me.jitish.gymuu.data.exercise.Exercise
 import me.jitish.gymuu.data.exercise.ExerciseRepository
+import me.jitish.gymuu.data.settings.AppSettingsRepository
+import me.jitish.gymuu.data.settings.VibrationIntensity
+import me.jitish.gymuu.data.settings.VibrationPattern
 import me.jitish.gymuu.data.routine.CreateExerciseDraft
 import me.jitish.gymuu.data.routine.CustomExercise
 import me.jitish.gymuu.data.routine.Routine
@@ -33,6 +36,7 @@ import me.jitish.gymuu.ui.exercise.triggerRestCompleteVibration
 class GymViewModel(application: Application) : AndroidViewModel(application) {
     private val exerciseRepository = ExerciseRepository(application)
     private val routineRepository = RoutineRepository(application)
+    private val settingsRepository = AppSettingsRepository(application)
     private val navigationPrefs = application.getSharedPreferences(NAVIGATION_PREFS_NAME, Context.MODE_PRIVATE)
 
     private val searchQuery = MutableStateFlow("")
@@ -62,12 +66,23 @@ class GymViewModel(application: Application) : AndroidViewModel(application) {
         },
         routineExerciseClipboard,
         _restTimers,
-        lastWorkoutRoute
-    ) { state, copiedExercises, restTimers, savedRoute ->
+        lastWorkoutRoute,
+        combine(
+            settingsRepository.vibrationIntensity,
+            settingsRepository.vibrationPattern
+        ) { vibrationIntensity, vibrationPattern ->
+            AppSettingsState(
+                vibrationIntensity = vibrationIntensity,
+                vibrationPattern = vibrationPattern
+            )
+        }
+    ) { state, copiedExercises, restTimers, savedRoute, settings ->
         state.copy(
             copiedExercises = copiedExercises,
             restTimers = restTimers,
-            lastWorkoutRoute = savedRoute
+            lastWorkoutRoute = savedRoute,
+            vibrationIntensity = settings.vibrationIntensity,
+            vibrationPattern = settings.vibrationPattern
         )
     }.stateIn(
         scope = viewModelScope,
@@ -314,6 +329,14 @@ class GymViewModel(application: Application) : AndroidViewModel(application) {
     fun deleteCustomExercise(exerciseId: String) = routineRepository.deleteCustomExercise(exerciseId)
     fun exportRoutineBackup(): String = routineRepository.exportBackup()
     fun importRoutineBackup(json: String): Result<String> = routineRepository.importBackup(json)
+    fun updateVibrationIntensity(intensity: VibrationIntensity) = settingsRepository.updateVibrationIntensity(intensity)
+    fun updateVibrationPattern(pattern: VibrationPattern) = settingsRepository.updateVibrationPattern(pattern)
+    fun previewRestCompleteVibration(
+        intensity: VibrationIntensity = settingsRepository.vibrationIntensity.value,
+        pattern: VibrationPattern = settingsRepository.vibrationPattern.value
+    ) {
+        triggerRestCompleteVibration(getApplication(), intensity, pattern)
+    }
 
     override fun onCleared() {
         val timers = _restTimers.value.values
@@ -360,7 +383,9 @@ data class GymUiState(
     val selectedCategory: ExerciseCategory = ExerciseCategory.ALL,
     val copiedExercises: List<RoutineExercise> = emptyList(),
     val restTimers: Map<String, RestTimerState> = emptyMap(),
-    val lastWorkoutRoute: LastWorkoutRoute? = null
+    val lastWorkoutRoute: LastWorkoutRoute? = null,
+    val vibrationIntensity: VibrationIntensity = VibrationIntensity.DEFAULT,
+    val vibrationPattern: VibrationPattern = VibrationPattern.DEFAULT
 ) {
     fun routine(routineId: String): Routine? = routines.firstOrNull { it.id == routineId }
     fun day(routineId: String, dayId: String): WorkoutDay? = routine(routineId)?.days?.firstOrNull { it.id == dayId }
@@ -422,6 +447,11 @@ data class GymUiState(
         return visibleBuiltInSections(builtInSectionGroups(), limit)
     }
 }
+
+private data class AppSettingsState(
+    val vibrationIntensity: VibrationIntensity,
+    val vibrationPattern: VibrationPattern
+)
 
 enum class ExerciseCategory(val label: String) {
     ALL("ALL"),

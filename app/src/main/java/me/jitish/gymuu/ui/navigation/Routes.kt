@@ -5,6 +5,7 @@ import android.net.Uri
 internal object Routes {
     const val START = "start"
     const val ROUTINES = "routines"
+    const val SETTINGS = "settings"
     const val WORKOUT = "workout/{routineId}/{dayId}"
     const val SELECT = "select/{routineId}/{dayId}?swapExerciseId={swapExerciseId}"
 

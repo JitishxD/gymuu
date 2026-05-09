@@ -21,6 +21,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.FitnessCenter
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.Text
@@ -65,14 +66,14 @@ internal fun RoutineRow(routine: Routine, onOpen: () -> Unit, onEdit: () -> Unit
 }
 
 @Composable
-private fun ManageRoutinesAction(icon: ImageVector, onClick: () -> Unit) {
+private fun DrawerAction(label: String, icon: ImageVector, onClick: () -> Unit) {
     Row(
         modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).padding(vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(20.dp)
     ) {
         Icon(icon, contentDescription = null, tint = GymMuted, modifier = Modifier.size(22.dp))
-        Text("Manage routines", color = Color(0xFFC8C8C8), fontSize = 20.sp)
+        Text(label, color = Color(0xFFC8C8C8), fontSize = 20.sp)
     }
 }
 
@@ -80,6 +81,7 @@ private fun ManageRoutinesAction(icon: ImageVector, onClick: () -> Unit) {
 internal fun RoutineDrawer(
     routines: List<Routine>,
     onManageRoutines: () -> Unit,
+    onSettingsClick: () -> Unit,
     onRoutineClick: (Routine) -> Unit
 ) {
     ModalDrawerSheet(drawerContainerColor = GymBlack, drawerContentColor = Color.White, modifier = Modifier.fillMaxHeight().widthIn(max = 320.dp)) {
@@ -108,7 +110,8 @@ internal fun RoutineDrawer(
                 }
             }
             DividerLine()
-            ManageRoutinesAction(icon = Icons.Default.Edit, onClick = onManageRoutines)
+            DrawerAction(label = "Manage routines", icon = Icons.Default.Edit, onClick = onManageRoutines)
+            DrawerAction(label = "Settings", icon = Icons.Default.Settings, onClick = onSettingsClick)
             DividerLine()
             SectionHeading("MY ROUTINES")
             routines.forEach { routine ->

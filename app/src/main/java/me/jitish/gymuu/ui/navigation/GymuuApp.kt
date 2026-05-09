@@ -17,6 +17,7 @@ import me.jitish.gymuu.ui.exercise.SelectExerciseScreen
 import me.jitish.gymuu.ui.routine.RoutineLaunchScreen
 import me.jitish.gymuu.ui.routine.RoutineListScreen
 import me.jitish.gymuu.ui.routine.WorkoutDayScreen
+import me.jitish.gymuu.ui.settings.SettingsScreen
 import me.jitish.gymuu.ui.theme.GymBlack
 
 @Composable
@@ -31,6 +32,9 @@ fun GymuuApp(viewModel: GymViewModel) {
             }
             composable(Routes.ROUTINES) {
                 RoutineListScreen(state = state, viewModel = viewModel, navController = navController)
+            }
+            composable(Routes.SETTINGS) {
+                SettingsScreen(state = state, viewModel = viewModel, navController = navController)
             }
             composable(
                 route = Routes.WORKOUT,

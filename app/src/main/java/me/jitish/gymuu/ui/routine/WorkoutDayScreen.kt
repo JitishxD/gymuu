@@ -254,6 +254,12 @@ internal fun WorkoutDayScreen(
                     }
                     scope.launch { drawerState.close() }
                 },
+                onSettingsClick = {
+                    navController.navigate(Routes.SETTINGS) {
+                        launchSingleTop = true
+                    }
+                    scope.launch { drawerState.close() }
+                },
                 onRoutineClick = { selected ->
                     selected.days.firstOrNull()?.let {
                         navController.navigate(Routes.workout(selected.id, it.id))
