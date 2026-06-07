@@ -95,7 +95,7 @@ internal class RoutinePersistence(
                                 set.copy(
                                     id = set.id.safeString().ifBlank { newId() },
                                     setNo = setIndex + 1,
-                                    reps = set.reps.safeString().ifBlank { "8-12" },
+                                    reps = set.reps.safeString(),
                                     weight = set.weight.safeString(),
                                     completed = set.completed
                                 )
@@ -310,7 +310,7 @@ internal class RoutinePersistence(
         return WorkoutSet(
             id = id.orEmpty().ifBlank { newId() },
             setNo = setNo?.takeIf { it > 0 } ?: 1,
-            reps = reps.orEmpty().ifBlank { "8-12" },
+            reps = reps.orEmpty(),
             weight = weight.orEmpty(),
             completed = completed ?: false
         )
