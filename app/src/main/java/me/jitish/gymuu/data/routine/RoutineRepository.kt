@@ -288,6 +288,45 @@ class RoutineRepository(context: Context) {
         updateCustomExercises(_customExercises.value.filterNot { it.id == exerciseId })
     }
 
+    /**
+     * Refreshes the [gifUrl] of every [ExerciseSource.BUILT_IN] routine exercise
+     * whose URL has drifted from the current asset-JSON value.  This keeps saved
+     * routines in sync when the CDN host or path changes between app updates.
+     */
+    fun refreshBuiltInGifUrls(exercises: List<Exercise>) {
+        if (exercises.isEmpty()) return
+
+        val urlById = exercises.associate { it.exerciseId to it.gifUrl }
+        var changed = false
+
+        val updatedRoutines = _routines.value.map { routine ->
+            routine.copy(
+                days = routine.days.map { day ->
+                    day.copy(
+                        exercises = day.exercises.map { exercise ->
+                            if (exercise.source == ExerciseSource.BUILT_IN && !exercise.exerciseId.isNullOrBlank()) {
+                                val currentUrl = urlById[exercise.exerciseId]
+                                if (currentUrl != null && currentUrl != exercise.gifUrl) {
+                                    changed = true
+                                    exercise.copy(gifUrl = currentUrl)
+                                } else {
+                                    exercise
+                                }
+                            } else {
+                                exercise
+                            }
+                        }
+                    )
+                }
+            )
+        }
+
+        if (changed) {
+            _routines.value = updatedRoutines
+            persistence.persistState(routines = updatedRoutines, customExercises = _customExercises.value)
+        }
+    }
+
     fun exportBackup(): String {
         return persistence.exportBackup(
             routines = _routines.value,

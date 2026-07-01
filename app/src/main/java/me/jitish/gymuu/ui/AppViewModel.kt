@@ -33,6 +33,7 @@ import me.jitish.gymuu.ui.exercise.RestTimerNotifier
 import me.jitish.gymuu.ui.exercise.formatRestCountdown
 import me.jitish.gymuu.ui.exercise.parseRestTimeToSeconds
 import me.jitish.gymuu.ui.exercise.triggerRestCompleteVibration
+import kotlin.time.Duration.Companion.milliseconds
 
 class AppViewModel(application: Application) : AndroidViewModel(application) {
     private val exerciseRepository = ExerciseRepository(application)
@@ -109,6 +110,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         restoreScheduledRestTimers()
         viewModelScope.launch {
             exerciseRepository.loadExercises()
+            routineRepository.refreshBuiltInGifUrls(exerciseRepository.exercises.value)
         }
     }
 
@@ -171,7 +173,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     private fun launchRestTimerJob(timer: RestTimerState) {
         restTimerJobs[timer.routineExerciseId] = viewModelScope.launch {
             while (true) {
-                delay(1_000L)
+                delay(1_000L.milliseconds)
 
                 val currentTimer = _restTimers.value[timer.routineExerciseId] ?: return@launch
                 if (RestTimerAlarmStore.loadTimer(getApplication(), timer.routineExerciseId) == null) {
@@ -350,7 +352,13 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun upsertCustomExercise(draft: CreateExerciseDraft) = routineRepository.upsertCustomExercise(draft)
     fun deleteCustomExercise(exerciseId: String) = routineRepository.deleteCustomExercise(exerciseId)
     fun exportRoutineBackup(): String = routineRepository.exportBackup()
-    fun importRoutineBackup(json: String): Result<String> = routineRepository.importBackup(json)
+    fun importRoutineBackup(json: String): Result<String> {
+        val result = routineRepository.importBackup(json)
+        if (result.isSuccess) {
+            routineRepository.refreshBuiltInGifUrls(exerciseRepository.exercises.value)
+        }
+        return result
+    }
     fun updateVibrationIntensity(intensity: VibrationIntensity) = settingsRepository.updateVibrationIntensity(intensity)
     fun updateVibrationPattern(pattern: VibrationPattern) = settingsRepository.updateVibrationPattern(pattern)
     fun updateVibrationRepeatCount(count: Int) = settingsRepository.updateVibrationRepeatCount(count)
