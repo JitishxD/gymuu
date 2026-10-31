@@ -98,7 +98,7 @@ internal fun RoutineListScreen(state: AppUiState, viewModel: AppViewModel, navCo
         if (uri == null) return@rememberLauncherForActivityResult
 
         runCatching {
-            context.contentResolver.openOutputStream(uri)?.bufferedWriter()?.use { writer ->
+            context.contentResolver.openOutputStream(uri, "wt")?.bufferedWriter()?.use { writer ->
                 writer.write(viewModel.exportRoutineBackup())
             } ?: error("Couldn't open the selected file.")
         }.onSuccess {

@@ -10,9 +10,11 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
+import android.os.SystemClock
 import android.view.View
 import android.widget.RemoteViews
 import androidx.core.app.NotificationCompat
+import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import me.jitish.gymuu.MainActivity
 import me.jitish.gymuu.R
@@ -20,285 +22,228 @@ import me.jitish.gymuu.ui.RestTimerState
 
 internal class RestTimerNotifier(context: Context) {
     private val appContext = context.applicationContext
-    private val alarmManager =
-        appContext.getSystemService(AlarmManager::class.java)
-    private val notificationManager =
-        appContext.getSystemService(NotificationManager::class.java)
+    private val alarmManager = appContext.getSystemService(AlarmManager::class.java)
+    private val notificationManager = appContext.getSystemService(NotificationManager::class.java)
 
     init {
-        createChannels()
+        ensureChannels()
     }
 
+    /** Posted once; the Chronometer counts down on its own, no per-second updates needed. */
     fun showRunningTimer(timer: RestTimerState) {
         if (!canPostNotifications()) return
+        val remainingMs = timer.endElapsedRealtimeMillis - SystemClock.elapsedRealtime()
+        if (remainingMs <= 0) return cancelRunningTimer(timer.routineExerciseId)
 
-        val remainingSeconds = timer.remainingSeconds.coerceAtLeast(0)
-        if (remainingSeconds == 0) {
-            cancelRunningTimer(timer)
-            return
-        }
-
-        cancelTimerComplete(timer)
-
-        val remainingText = formatRestCountdown(remainingSeconds)
         val label = appContext.getString(R.string.notification_rest_time_label)
-        val notificationLayout = restTimerLayout(
-            countdownText = remainingText,
-            label = label,
-        )
+        val views = RemoteViews(appContext.packageName, R.layout.notification_rest_timer).apply {
+            setViewVisibility(R.id.notification_rest_chronometer, View.VISIBLE)
+            setViewVisibility(R.id.notification_rest_countdown, View.GONE)
+            setChronometer(
+                R.id.notification_rest_chronometer,
+                timer.endElapsedRealtimeMillis,
+                null,
+                true
+            )
+            setChronometerCountDown(R.id.notification_rest_chronometer, true)
+            setTextViewText(R.id.notification_rest_label, label)
+            setViewVisibility(R.id.notification_rest_hint, View.GONE)
+        }
         val notification = NotificationCompat.Builder(appContext, RUNNING_CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_rest_timer)
             .setContentTitle(label)
-            .setContentText(remainingText)
+            .setContentText(timer.exerciseName)
             .setStyle(NotificationCompat.DecoratedCustomViewStyle())
-            .setCustomContentView(notificationLayout)
-            .setCustomBigContentView(notificationLayout)
-            .setCustomHeadsUpContentView(notificationLayout)
-            .setContentIntent(openAppIntent())
-            .setCategory(NotificationCompat.CATEGORY_PROGRESS)
-            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
-            .setColor(REST_NOTIFICATION_COLOR)
+            .setCustomContentView(views)
+            .setContentIntent(openAppIntent(null))
+            .setCategory(NotificationCompat.CATEGORY_STOPWATCH)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setOngoing(true)
-            .setOnlyAlertOnce(true)
+            .setSilent(true)
             .setShowWhen(false)
+            .setTimeoutAfter(remainingMs)
             .build()
-
-        notificationManager.notify(timer.runningNotificationId(), notification)
+        notificationManager.notify(runningId(timer.routineExerciseId), notification)
     }
 
-    private fun restTimerLayout(countdownText: String, label: String, hint: String? = null): RemoteViews {
-        return RemoteViews(appContext.packageName, R.layout.notification_rest_timer).apply {
-            setTextViewText(R.id.notification_rest_countdown, countdownText)
-            setTextViewText(R.id.notification_rest_label, label)
-            setTextViewText(R.id.notification_rest_hint, hint.orEmpty())
-            setViewVisibility(R.id.notification_rest_hint, if (hint.isNullOrBlank()) View.GONE else View.VISIBLE)
-        }
-    }
-
-    fun showTimerComplete(timer: RestTimerState, requiresAcknowledgement: Boolean = false): Boolean {
+    fun showTimerComplete(timer: RestTimerState, requiresAcknowledgement: Boolean): Boolean {
         if (!canPostNotifications()) return false
+        val id = timer.routineExerciseId
+        cancelRunningTimer(id)
 
-        cancelRunningTimer(timer)
-
-        val completionLabel = appContext.getString(R.string.notification_rest_complete_label)
-        val completionHint = appContext.getString(
-            if (requiresAcknowledgement) {
-                R.string.notification_tap_to_stop_vibration_label
-            } else {
-                R.string.notification_tap_to_return_label
-            }
+        val label = appContext.getString(R.string.notification_rest_complete_label)
+        val hint = appContext.getString(
+            if (requiresAcknowledgement) R.string.notification_tap_to_stop_vibration_label
+            else R.string.notification_tap_to_return_label
         )
-        val notificationLayout = restTimerLayout(
-            countdownText = "00:00",
-            label = completionLabel,
-            hint = completionHint
-        )
-        val notification = NotificationCompat.Builder(appContext, COMPLETE_CHANNEL_ID)
+        val views = RemoteViews(appContext.packageName, R.layout.notification_rest_timer).apply {
+            setViewVisibility(R.id.notification_rest_chronometer, View.GONE)
+            setViewVisibility(R.id.notification_rest_countdown, View.VISIBLE)
+            setTextViewText(R.id.notification_rest_countdown, "00:00")
+            setTextViewText(R.id.notification_rest_label, label)
+            setTextViewText(R.id.notification_rest_hint, hint)
+            setViewVisibility(R.id.notification_rest_hint, View.VISIBLE)
+        }
+        val dismiss = receiverIntent(ACTION_DISMISS_ALERT, id, DISMISS_BASE)
+        val builder = NotificationCompat.Builder(appContext, COMPLETE_CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_rest_timer)
-            .setContentTitle(completionLabel)
-            .setContentText(completionHint)
+            .setContentTitle(label)
+            .setContentText(hint)
             .setStyle(NotificationCompat.DecoratedCustomViewStyle())
-            .setCustomContentView(notificationLayout)
-            .setCustomBigContentView(notificationLayout)
-            .setCustomHeadsUpContentView(notificationLayout)
-            .setContentIntent(openAppIntent(timer.routineExerciseId))
+            .setCustomContentView(views)
+            .setContentIntent(openAppIntent(id))
+            .setDeleteIntent(dismiss) // swiping away also stops "until confirmed" vibration
             .setCategory(NotificationCompat.CATEGORY_ALARM)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
-            .setColor(REST_NOTIFICATION_COLOR)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
-            .setAutoCancel(!requiresAcknowledgement)
-            .setOngoing(requiresAcknowledgement)
-            .setWhen(System.currentTimeMillis())
+            .setAutoCancel(true)
             .setShowWhen(true)
-            .build()
-
-        notificationManager.notify(timer.completeNotificationId(), notification)
+        if (requiresAcknowledgement) {
+            builder.addAction(
+                0,
+                appContext.getString(R.string.notification_stop_vibration),
+                dismiss
+            )
+        }
+        notificationManager.notify(completeId(id), builder.build())
         return true
     }
 
-    fun cancelRunningTimer(timer: RestTimerState) {
-        cancelRunningTimer(timer.routineExerciseId)
+    fun cancelRunningTimer(id: String) = notificationManager.cancel(runningId(id))
+    fun cancelTimerComplete(id: String) = notificationManager.cancel(completeId(id))
+    fun cancelTimerNotifications(id: String) {
+        cancelRunningTimer(id); cancelTimerComplete(id)
     }
 
-    fun cancelRunningTimer(routineExerciseId: String) {
-        notificationManager.cancel(routineExerciseId.runningNotificationId())
+    fun cancelRestCompleteAlert(id: String) {
+        cancelTimerComplete(id); cancelRestCompleteVibration(appContext)
     }
 
-    fun cancelTimerComplete(timer: RestTimerState) {
-        cancelTimerComplete(timer.routineExerciseId)
-    }
-
-    fun cancelTimerComplete(routineExerciseId: String) {
-        notificationManager.cancel(routineExerciseId.completeNotificationId())
-    }
-
-    fun cancelTimerNotifications(routineExerciseId: String) {
-        cancelRunningTimer(routineExerciseId)
-        cancelTimerComplete(routineExerciseId)
-    }
-
-    fun cancelRestCompleteAlert(routineExerciseId: String) {
-        cancelTimerComplete(routineExerciseId)
-        cancelRestCompleteVibration()
-    }
-
-    fun cancelRestCompleteVibration() {
-        cancelRestCompleteVibration(appContext)
-    }
+    fun cancelRestCompleteVibration() = cancelRestCompleteVibration(appContext)
 
     fun scheduleTimerComplete(timer: RestTimerState) {
-        RestTimerAlarmStore.saveTimer(appContext, timer)
-
-        val pendingIntent = timerCompletePendingIntent(
-            routineExerciseId = timer.routineExerciseId,
-            flags = PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        ) ?: return
-
-        if (canScheduleExactAlarms()) {
-            scheduleExactTimer(timer, pendingIntent)
-        } else {
-            scheduleFallbackTimer(timer, pendingIntent)
-        }
-    }
-
-    fun cancelScheduledTimer(timer: RestTimerState) {
-        cancelScheduledTimer(timer.routineExerciseId)
-    }
-
-    fun cancelScheduledTimer(routineExerciseId: String) {
-        val pendingIntent =
-            timerCompletePendingIntent(
-                routineExerciseId = routineExerciseId,
-                flags = PendingIntent.FLAG_NO_CREATE or PendingIntent.FLAG_IMMUTABLE
+        RestTimerAlarmStore.save(appContext, timer)
+        val pi = receiverIntent(ACTION_TIMER_COMPLETE, timer.routineExerciseId, ALARM_BASE)
+        val exact =
+            Build.VERSION.SDK_INT < Build.VERSION_CODES.S || alarmManager.canScheduleExactAlarms()
+        try {
+            if (exact) {
+                alarmManager.setExactAndAllowWhileIdle(
+                    AlarmManager.ELAPSED_REALTIME_WAKEUP,
+                    timer.endElapsedRealtimeMillis,
+                    pi
+                )
+            } else {
+                alarmManager.setAndAllowWhileIdle(
+                    AlarmManager.ELAPSED_REALTIME_WAKEUP,
+                    timer.endElapsedRealtimeMillis,
+                    pi
+                )
+            }
+        } catch (_: SecurityException) {
+            alarmManager.setAndAllowWhileIdle(
+                AlarmManager.ELAPSED_REALTIME_WAKEUP,
+                timer.endElapsedRealtimeMillis,
+                pi
             )
-        if (pendingIntent != null) {
-            alarmManager.cancel(pendingIntent)
         }
-        RestTimerAlarmStore.removeTimer(appContext, routineExerciseId)
     }
 
-    private fun createChannels() {
-        val runningChannel = NotificationChannel(
+    /** Cancels the alarm and forgets the timer. */
+    fun cancelScheduledTimer(id: String) {
+        val intent = Intent(appContext, RestTimerCompleteReceiver::class.java).setAction(
+            ACTION_TIMER_COMPLETE
+        )
+        PendingIntent.getBroadcast(
+            appContext, requestCode(ALARM_BASE, id), intent,
+            PendingIntent.FLAG_NO_CREATE or PendingIntent.FLAG_IMMUTABLE
+        )?.let(alarmManager::cancel)
+        RestTimerAlarmStore.remove(appContext, id)
+    }
+
+    private fun ensureChannels() {
+        if (channelsCreated) return
+        LEGACY_CHANNEL_IDS.forEach(notificationManager::deleteNotificationChannel)
+        val running = NotificationChannel(
             RUNNING_CHANNEL_ID,
-            "Rest timer",
-            NotificationManager.IMPORTANCE_DEFAULT
+            appContext.getString(R.string.channel_running_name),
+            NotificationManager.IMPORTANCE_LOW
         ).apply {
-            description = "Shows active rest countdowns while Gymuu is in the background."
-            setSound(null, null)
-            enableVibration(false)
+            description = appContext.getString(R.string.channel_running_desc)
+            setSound(null, null); enableVibration(false)
             lockscreenVisibility = Notification.VISIBILITY_PUBLIC
         }
-
-        val completeChannel = NotificationChannel(
+        val complete = NotificationChannel(
             COMPLETE_CHANNEL_ID,
-            "Rest complete",
+            appContext.getString(R.string.channel_complete_name),
             NotificationManager.IMPORTANCE_HIGH
         ).apply {
-            description = "Alerts when a background rest timer finishes."
-            setSound(null, null)
-            enableVibration(false)
+            description = appContext.getString(R.string.channel_complete_desc)
+            setSound(null, null); enableVibration(false) // the app drives the vibration itself
             lockscreenVisibility = Notification.VISIBILITY_PUBLIC
         }
-
-        notificationManager.createNotificationChannels(listOf(runningChannel, completeChannel))
+        notificationManager.createNotificationChannels(listOf(running, complete))
+        channelsCreated = true
     }
 
-    private fun openAppIntent(routineExerciseId: String? = null): PendingIntent {
+    private fun openAppIntent(id: String?): PendingIntent {
         val intent = Intent(appContext, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
-            if (routineExerciseId != null) {
-                action = ACTION_OPEN_REST_COMPLETE
-                putExtra(EXTRA_ROUTINE_EXERCISE_ID, routineExerciseId)
+            if (id != null) {
+                action = ACTION_OPEN_REST_COMPLETE; putExtra(EXTRA_ROUTINE_EXERCISE_ID, id)
             }
         }
+        val code = if (id == null) OPEN_APP_REQUEST_CODE else requestCode(OPEN_BASE, id)
         return PendingIntent.getActivity(
             appContext,
-            routineExerciseId?.notificationRequestCode() ?: OPEN_APP_REQUEST_CODE,
+            code,
             intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
     }
 
-    private fun timerCompletePendingIntent(routineExerciseId: String, flags: Int): PendingIntent? {
-        val intent = Intent(appContext, RestTimerCompleteReceiver::class.java).apply {
-            action = ACTION_TIMER_COMPLETE
-            putExtra(EXTRA_ROUTINE_EXERCISE_ID, routineExerciseId)
-        }
+    private fun receiverIntent(action: String, id: String, base: Int): PendingIntent {
+        val intent = Intent(appContext, RestTimerCompleteReceiver::class.java)
+            .setAction(action).putExtra(EXTRA_ROUTINE_EXERCISE_ID, id)
         return PendingIntent.getBroadcast(
-            appContext,
-            "$ACTION_TIMER_COMPLETE:$routineExerciseId".notificationRequestCode(),
-            intent,
-            flags
+            appContext, requestCode(base, id), intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
     }
 
     private fun canPostNotifications(): Boolean {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return true
-        return ContextCompat.checkSelfPermission(appContext, Manifest.permission.POST_NOTIFICATIONS) ==
-            PackageManager.PERMISSION_GRANTED
+        if (!NotificationManagerCompat.from(appContext).areNotificationsEnabled()) return false
+        return Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+                ContextCompat.checkSelfPermission(
+                    appContext,
+                    Manifest.permission.POST_NOTIFICATIONS
+                ) == PackageManager.PERMISSION_GRANTED
     }
 
-    private fun canScheduleExactAlarms(): Boolean {
-        return Build.VERSION.SDK_INT < Build.VERSION_CODES.S || alarmManager.canScheduleExactAlarms()
-    }
-
-    private fun scheduleExactTimer(timer: RestTimerState, pendingIntent: PendingIntent) {
-        try {
-            alarmManager.setExactAndAllowWhileIdle(
-                AlarmManager.ELAPSED_REALTIME_WAKEUP,
-                timer.endElapsedRealtimeMillis,
-                pendingIntent
-            )
-        } catch (_: SecurityException) {
-            scheduleFallbackTimer(timer, pendingIntent)
-        }
-    }
-
-    private fun scheduleFallbackTimer(timer: RestTimerState, pendingIntent: PendingIntent) {
-        alarmManager.setAndAllowWhileIdle(
-            AlarmManager.ELAPSED_REALTIME_WAKEUP,
-            timer.endElapsedRealtimeMillis,
-            pendingIntent
-        )
-    }
-
-    private fun RestTimerState.runningNotificationId(): Int {
-        return routineExerciseId.runningNotificationId()
-    }
-
-    private fun RestTimerState.completeNotificationId(): Int {
-        return routineExerciseId.completeNotificationId()
-    }
-
-    private fun String.runningNotificationId(): Int {
-        return RUNNING_NOTIFICATION_ID_BASE + notificationOffset(this)
-    }
-
-    private fun String.completeNotificationId(): Int {
-        return COMPLETE_NOTIFICATION_ID_BASE + notificationOffset(this)
-    }
-
-    private fun String.notificationRequestCode(): Int {
-        return ALARM_REQUEST_CODE_BASE + notificationOffset(this)
-    }
-
-    private fun notificationOffset(value: String): Int {
-        return (value.hashCode() and Int.MAX_VALUE) % NOTIFICATION_ID_RANGE
-    }
+    private fun offset(id: String) = (id.hashCode() and Int.MAX_VALUE) % RANGE
+    private fun runningId(id: String) = RUNNING_BASE + offset(id)
+    private fun completeId(id: String) = COMPLETE_BASE + offset(id)
+    private fun requestCode(base: Int, id: String) = base + offset(id)
 
     companion object {
         const val EXTRA_ROUTINE_EXERCISE_ID = "me.jitish.gymuu.extra.ROUTINE_EXERCISE_ID"
         const val ACTION_TIMER_COMPLETE = "me.jitish.gymuu.action.REST_TIMER_COMPLETE"
+        const val ACTION_DISMISS_ALERT = "me.jitish.gymuu.action.DISMISS_REST_ALERT"
         const val ACTION_OPEN_REST_COMPLETE = "me.jitish.gymuu.action.OPEN_REST_COMPLETE"
 
-        private const val RUNNING_CHANNEL_ID = "rest_timer_running_lockscreen"
-        private const val COMPLETE_CHANNEL_ID = "rest_timer_complete_app_controlled"
+        private const val RUNNING_CHANNEL_ID = "rest_timer_running_v2"
+        private const val COMPLETE_CHANNEL_ID = "rest_timer_complete_v2"
+        private val LEGACY_CHANNEL_IDS =
+            listOf("rest_timer_running_lockscreen", "rest_timer_complete_app_controlled")
         private const val OPEN_APP_REQUEST_CODE = 2101
-        private const val REST_NOTIFICATION_COLOR = 0xFF4CAF50.toInt()
-        private const val RUNNING_NOTIFICATION_ID_BASE = 7_000
-        private const val COMPLETE_NOTIFICATION_ID_BASE = 107_000
-        private const val ALARM_REQUEST_CODE_BASE = 207_000
-        private const val NOTIFICATION_ID_RANGE = 100_000
+        private const val RANGE = 100_000
+        private const val RUNNING_BASE = 7_000
+        private const val COMPLETE_BASE = 107_000
+        private const val ALARM_BASE = 207_000
+        private const val DISMISS_BASE = 307_000
+        private const val OPEN_BASE = 407_000
+
+        @Volatile
+        private var channelsCreated = false
     }
 }

@@ -11,139 +11,111 @@ internal class RoutinePersistence(
     private val newId: () -> String
 ) {
     fun loadState(): PersistedDomainState {
-        val stateJson = prefs.getString(KEY_APP_STATE, null)
-        if (!stateJson.isNullOrBlank()) {
-            parseAppState(stateJson)?.let { return it }
-        }
-
-        val legacyState = PersistedDomainState(
-            routines = loadLegacyRoutines(),
-            customExercises = loadLegacyCustomExercises()
-        )
-        persistState(legacyState.routines, legacyState.customExercises)
-        return legacyState
+        prefs.getString(KEY_APP_STATE, null)?.takeIf { it.isNotBlank() }?.let(::parseAppState)
+            ?.let { return it }
+        val legacy = PersistedDomainState(loadLegacyRoutines(), loadLegacyCustomExercises())
+        persistState(legacy.routines, legacy.customExercises)
+        return legacy
     }
 
-    fun exportBackup(routines: List<Routine>, customExercises: List<CustomExercise>): String {
-        return gson.toJson(
-            PersistedAppState.fromDomain(
-                routines = routines,
-                customExercises = customExercises
-            )
-        )
-    }
+    fun exportBackup(routines: List<Routine>, customExercises: List<CustomExercise>): String =
+        gson.toJson(PersistedAppState.fromDomain(routines, customExercises))
 
     fun importBackup(
         json: String,
         currentRoutines: List<Routine>,
         currentCustomExercises: List<CustomExercise>
-    ): Result<ImportedMergeResult> = runCatching {
-        val importedState = parseAppState(json)
-            ?: error("This file doesn't contain a valid Gymuu routines backup.")
-        if (importedState.routines.isEmpty()) {
-            error("The selected backup doesn't contain any routines.")
-        }
-
-        mergeImportedState(
-            importedState = importedState,
-            currentRoutines = currentRoutines,
-            currentCustomExercises = currentCustomExercises
-        )
+    ) = runCatching {
+        val imported =
+            parseAppState(json) ?: error("This file doesn't contain a valid Gymuu routines backup.")
+        if (imported.routines.isEmpty()) error("The selected backup doesn't contain any routines.")
+        mergeImportedState(imported, currentRoutines, currentCustomExercises)
     }
 
+    /** Writes only the versioned state; legacy keys are removed after migration. Safe to call off the main thread. */
     fun persistState(routines: List<Routine>, customExercises: List<CustomExercise>) {
-        val sanitizedRoutines = sanitizeRoutines(routines)
-        val sanitizedCustomExercises = sanitizeCustomExercises(customExercises)
-        val appState = PersistedAppState.fromDomain(
-            routines = sanitizedRoutines,
-            customExercises = sanitizedCustomExercises
-        )
-
-        // Use a synchronous commit so edits still land even if the app is closed immediately after changes.
+        val json = gson.toJson(PersistedAppState.fromDomain(routines, customExercises))
         prefs.edit(commit = true) {
-            putString(KEY_APP_STATE, gson.toJson(appState))
-            putString(KEY_ROUTINES, gson.toJson(sanitizedRoutines))
-            putString(KEY_CUSTOM_EXERCISES, gson.toJson(sanitizedCustomExercises))
+            putString(KEY_APP_STATE, json)
+            remove(KEY_ROUTINES)
+            remove(KEY_CUSTOM_EXERCISES)
         }
     }
 
-    fun defaultRoutines(): List<Routine> = listOf(
-        Routine(id = newId(), name = "DEMO", days = listOf(WorkoutDay(id = newId(), name = "DAY 1")))
-    )
+    fun defaultRoutines(): List<Routine> =
+        listOf(
+            Routine(
+                id = newId(),
+                name = "DEMO",
+                days = listOf(WorkoutDay(id = newId(), name = "DAY 1"))
+            )
+        )
 
-    fun sanitizeRoutines(routines: List<Routine?>?): List<Routine> {
-        return routines.orEmpty().mapNotNull { routine ->
-            if (routine == null) return@mapNotNull null
-
+    /** Repairs untrusted data (legacy Gson / imports). Empty set lists are preserved. */
+    fun sanitizeRoutines(routines: List<Routine?>?): List<Routine> =
+        routines.orEmpty().mapNotNull { routine ->
+            routine ?: return@mapNotNull null
             @Suppress("UNCHECKED_CAST")
-            val rawDays = (routine.days as? List<WorkoutDay?>).orEmpty()
-            val days = rawDays
-                .ifEmpty { listOf(WorkoutDay(id = newId(), name = "DAY 1")) }
-                .mapNotNull { it }
+            val days = (routine.days as? List<WorkoutDay?>).orEmpty().filterNotNull()
                 .mapIndexed { dayIndex, day ->
                     @Suppress("UNCHECKED_CAST")
-                    val rawExercises = (day.exercises as? List<RoutineExercise?>).orEmpty()
-                    val exercises = rawExercises.mapNotNull { exercise ->
-                        if (exercise == null) return@mapNotNull null
-
-                        @Suppress("UNCHECKED_CAST")
-                        val rawSets = (exercise.sets as? List<WorkoutSet?>).orEmpty()
-                        val sets = rawSets
-                            .ifEmpty { defaultSets(3, "8-12", newId) }
-                            .mapNotNull { it }
-                            .mapIndexed { setIndex, set ->
-                                set.copy(
-                                    id = set.id.safeString().ifBlank { newId() },
-                                    setNo = setIndex + 1,
-                                    reps = set.reps.safeString(),
-                                    weight = set.weight.safeString(),
-                                    completed = set.completed
+                    val exercises =
+                        (day.exercises as? List<RoutineExercise?>).orEmpty().filterNotNull()
+                            .map { ex ->
+                                @Suppress("UNCHECKED_CAST")
+                                val sets = (ex.sets as? List<WorkoutSet?>).orEmpty().filterNotNull()
+                                    .mapIndexed { i, s ->
+                                        s.copy(
+                                            id = s.id.safeString().ifBlank { newId() },
+                                            setNo = i + 1,
+                                            reps = s.reps.safeString(),
+                                            weight = s.weight.safeString()
+                                        )
+                                    }
+                                ex.copy(
+                                    id = ex.id.safeString().ifBlank { newId() },
+                                    name = ex.name.safeString().ifBlank { "Exercise" },
+                                    mediaMimeType = ex.mediaMimeType.safeString()
+                                        .takeIf { it.isNotBlank() },
+                                    sets = sets,
+                                    rest = ex.rest.safeString(),
+                                    notes = ex.notes.safeString(),
+                                    source = (ex.source as ExerciseSource?)
+                                        ?: ExerciseSource.BUILT_IN
                                 )
                             }
-                        exercise.copy(
-                            id = exercise.id.safeString().ifBlank { newId() },
-                            exerciseId = exercise.exerciseId,
-                            name = exercise.name.safeString().ifBlank { "Exercise" },
-                            gifUrl = exercise.gifUrl,
-                            mediaMimeType = exercise.mediaMimeType.safeString().takeIf { it.isNotBlank() },
-                            sets = sets,
-                            rest = exercise.rest.safeString(),
-                            notes = exercise.notes.safeString(),
-                            source = exercise.source.safeRoutineSource()
-                        )
-                    }
                     day.copy(
                         id = day.id.safeString().ifBlank { newId() },
                         name = day.name.safeString().ifBlank { "DAY ${dayIndex + 1}" },
                         exercises = exercises
                     )
                 }
-
             routine.copy(
                 id = routine.id.safeString().ifBlank { newId() },
                 name = routine.name.safeString().ifBlank { "New Routine" },
-                days = if (days.isEmpty()) listOf(WorkoutDay(id = newId(), name = "DAY 1")) else days
+                days = days.ifEmpty { listOf(WorkoutDay(id = newId(), name = "DAY 1")) }
             )
         }.ifEmpty { defaultRoutines() }
-    }
 
     fun sanitizeCustomExercises(exercises: List<CustomExercise?>?): List<CustomExercise> {
-        val usedIds = mutableSetOf<String>()
-        return exercises.orEmpty().mapNotNull { exercise ->
-            if (exercise == null) return@mapNotNull null
-            val name = exercise.name.safeString().trim()
+        val usedIds = HashSet<String>()
+        return exercises.orEmpty().mapNotNull { ex ->
+            ex ?: return@mapNotNull null
+            val name = ex.name.safeString().trim()
             if (name.isBlank()) return@mapNotNull null
-
-            val preferredId = exercise.id.safeString().trim()
-            val id = if (preferredId.isNotBlank() && usedIds.add(preferredId)) preferredId else newId().also { usedIds.add(it) }
-            exercise.copy(
+            val preferred = ex.id.safeString().trim()
+            val id =
+                if (preferred.isNotBlank() && usedIds.add(preferred)) preferred else newId().also {
+                    usedIds.add(it)
+                }
+            ex.copy(
                 id = id,
                 name = name,
-                sets = exercise.sets.coerceIn(1, 10),
-                reps = exercise.reps.safeString().ifBlank { "10" },
-                rest = normalizeRest(exercise.rest.safeString()),
-                mediaUrl = exercise.mediaUrl.safeString().trim().takeIf { it.isNotBlank() },
-                mediaMimeType = exercise.mediaMimeType.safeString().trim().takeIf { it.isNotBlank() },
+                sets = ex.sets.coerceIn(1, 10),
+                reps = ex.reps.safeString().ifBlank { "10" },
+                rest = normalizeRest(ex.rest.safeString()),
+                mediaUrl = ex.mediaUrl.safeString().trim().takeIf { it.isNotBlank() },
+                mediaMimeType = ex.mediaMimeType.safeString().trim().takeIf { it.isNotBlank() },
                 source = ExerciseSource.CUSTOM
             )
         }
@@ -153,8 +125,12 @@ internal class RoutinePersistence(
         val json = prefs.getString(KEY_ROUTINES, null) ?: return defaultRoutines()
         return runCatching {
             val type = object : TypeToken<List<Routine?>>() {}.type
-            val routines = sanitizeRoutines(gson.fromJson<List<Routine?>>(json, type))
-            if (routines.isLegacySeed()) defaultRoutines() else routines
+            sanitizeRoutines(
+                gson.fromJson<List<Routine?>>(
+                    json,
+                    type
+                )
+            ).let { if (it.isLegacySeed()) defaultRoutines() else it }
         }.getOrElse { defaultRoutines() }
     }
 
@@ -166,181 +142,128 @@ internal class RoutinePersistence(
         }.getOrElse { emptyList() }
     }
 
-    private fun parseAppState(json: String): PersistedDomainState? {
-        return runCatching {
-            gson.fromJson(json, PersistedAppState::class.java)
-                ?.takeIf { it.routines != null || it.customExercises != null }
-                ?.toDomainState()
-        }.getOrNull()
-    }
+    private fun parseAppState(json: String): PersistedDomainState? = runCatching {
+        gson.fromJson(json, PersistedAppState::class.java)
+            ?.takeIf { it.routines != null || it.customExercises != null }
+            ?.toDomainState()
+    }.getOrNull()
 
     private fun mergeImportedState(
-        importedState: PersistedDomainState,
+        imported: PersistedDomainState,
         currentRoutines: List<Routine>,
-        currentCustomExercises: List<CustomExercise>
+        currentCustoms: List<CustomExercise>
     ): ImportedMergeResult {
-        val sanitizedCurrentRoutines = sanitizeRoutines(currentRoutines)
-        val sanitizedCurrentCustomExercises = sanitizeCustomExercises(currentCustomExercises)
-        val mergedCustomExercises = sanitizedCurrentCustomExercises.toMutableList()
-        val existingBySignature = sanitizedCurrentCustomExercises.associateByTo(mutableMapOf()) { it.customSignature() }
-        val customExerciseIdMap = mutableMapOf<String, String>()
+        val customs = sanitizeCustomExercises(currentCustoms)
+        val merged = customs.toMutableList()
+        val bySignature = customs.associateByTo(HashMap()) { it.customSignature() }
+        val idMap = HashMap<String, String>()
 
-        fun mergeOrReuseCustomExercise(exercise: CustomExercise): String {
-            val sanitizedExercise = exercise.copy(
-                name = exercise.name.trim(),
-                sets = exercise.sets.coerceIn(1, 10),
-                reps = exercise.reps.trim().ifBlank { "10" },
-                rest = normalizeRest(exercise.rest),
+        fun mergeOrReuse(exercise: CustomExercise): String {
+            val clean = exercise.copy(
+                name = exercise.name.trim(), sets = exercise.sets.coerceIn(1, 10),
+                reps = exercise.reps.trim().ifBlank { "10" }, rest = normalizeRest(exercise.rest),
                 mediaUrl = exercise.mediaUrl?.trim()?.takeIf { it.isNotBlank() },
                 mediaMimeType = exercise.mediaMimeType?.trim()?.takeIf { it.isNotBlank() },
                 source = ExerciseSource.CUSTOM
             )
-            val signature = sanitizedExercise.customSignature()
-            existingBySignature[signature]?.let { return it.id }
-
-            val importedCopy = sanitizedExercise.copy(id = newId())
-            mergedCustomExercises += importedCopy
-            existingBySignature[signature] = importedCopy
-            return importedCopy.id
+            val sig = clean.customSignature()
+            bySignature[sig]?.let { return it.id }
+            val copy = clean.copy(id = newId())
+            merged += copy
+            bySignature[sig] = copy
+            return copy.id
         }
 
-        importedState.customExercises.forEach { customExercise ->
-            customExerciseIdMap[customExercise.id] = mergeOrReuseCustomExercise(customExercise)
-        }
-
-        importedState.routines.forEach { routine ->
-            routine.days.forEach { day ->
-                day.exercises.forEach { exercise ->
-                    val importedCustomId = exercise.exerciseId
-                    if (exercise.source == ExerciseSource.CUSTOM && !importedCustomId.isNullOrBlank() && importedCustomId !in customExerciseIdMap) {
-                        customExerciseIdMap[importedCustomId] = mergeOrReuseCustomExercise(
-                            exercise.toFallbackCustomExercise(importedCustomId)
-                        )
+        imported.customExercises.forEach { idMap[it.id] = mergeOrReuse(it) }
+        imported.routines.forEach { r ->
+            r.days.forEach { d ->
+                d.exercises.forEach { ex ->
+                    val cid = ex.exerciseId
+                    if (ex.source == ExerciseSource.CUSTOM && !cid.isNullOrBlank() && cid !in idMap) {
+                        idMap[cid] = mergeOrReuse(ex.toFallbackCustomExercise(cid))
                     }
                 }
             }
         }
 
-        val importedRoutines = importedState.routines.map { routine ->
-            routine.rekeyForImport(customExerciseIdMap)
-        }
-
+        val importedRoutines = imported.routines.map { it.rekeyForImport(idMap) }
         return ImportedMergeResult(
-            routines = sanitizeRoutines(sanitizedCurrentRoutines + importedRoutines),
-            customExercises = sanitizeCustomExercises(mergedCustomExercises),
+            routines = sanitizeRoutines(currentRoutines + importedRoutines),
+            customExercises = sanitizeCustomExercises(merged),
             routinesAdded = importedRoutines.size,
-            customExercisesAdded = (mergedCustomExercises.size - sanitizedCurrentCustomExercises.size).coerceAtLeast(0)
+            customExercisesAdded = (merged.size - customs.size).coerceAtLeast(0)
         )
     }
 
     private fun List<Routine>.isLegacySeed(): Boolean {
-        if (size != 2) return false
-        val names = map { it.name.safeString() }.toSet()
-        val oldSeedNames = setOf("Push Day", "Legs & Core")
-        val hasUserData = any { routine ->
-            routine.days.any { day -> day.exercises.isNotEmpty() } ||
-                routine.name.safeString() !in oldSeedNames
-        }
-        return names == oldSeedNames && !hasUserData
+        val seed = setOf("Push Day", "Legs & Core")
+        return size == 2 && map { it.name }.toSet() == seed && none { r -> r.days.any { it.exercises.isNotEmpty() } }
     }
 
-    private fun CustomExercise.customSignature(): String {
-        return listOf(
-            name.trim().lowercase(),
-            sets.coerceIn(1, 10).toString(),
-            reps.trim(),
-            normalizeRest(rest),
-            mediaUrl.orEmpty().trim(),
-            mediaMimeType.orEmpty().trim().lowercase()
-        ).joinToString("|")
-    }
+    private fun CustomExercise.customSignature() = listOf(
+        name.trim().lowercase(), sets.coerceIn(1, 10).toString(), reps.trim(), normalizeRest(rest),
+        mediaUrl.orEmpty().trim(), mediaMimeType.orEmpty().trim().lowercase()
+    ).joinToString("|")
 
     private fun PersistedAppState.toDomainState(): PersistedDomainState {
-        val parsedCustomExercises = sanitizeCustomExercises(customExercises.orEmpty().mapNotNull { it?.toCustomExercise() })
-        val parsedRoutines = sanitizeRoutines(
-            routines.orEmpty().mapNotNull { storedRoutine -> storedRoutine?.toRoutine() }
-        ).let { if (it.isLegacySeed()) defaultRoutines() else it }
-
-        return PersistedDomainState(
-            routines = parsedRoutines,
-            customExercises = parsedCustomExercises
-        )
+        val customs =
+            sanitizeCustomExercises(customExercises.orEmpty().mapNotNull { it?.toCustomExercise() })
+        val parsed = sanitizeRoutines(routines.orEmpty().mapNotNull { it?.toRoutine() })
+            .let { if (it.isLegacySeed()) defaultRoutines() else it }
+        return PersistedDomainState(parsed, customs)
     }
 
-    private fun StoredRoutine.toRoutine(): Routine {
-        val parsedDays = days.orEmpty()
-            .mapNotNull { it?.toWorkoutDay() }
+    private fun StoredRoutine.toRoutine() = Routine(
+        id = id.orEmpty().ifBlank { newId() },
+        name = name.orEmpty().ifBlank { "New Routine" },
+        days = days.orEmpty().mapNotNull { it?.toWorkoutDay() }
             .ifEmpty { listOf(WorkoutDay(id = newId(), name = "DAY 1")) }
+    )
 
-        return Routine(
-            id = id.orEmpty().ifBlank { newId() },
-            name = name.orEmpty().ifBlank { "New Routine" },
-            days = parsedDays
-        )
-    }
+    private fun StoredWorkoutDay.toWorkoutDay() = WorkoutDay(
+        id = id.orEmpty().ifBlank { newId() },
+        name = name.orEmpty().ifBlank { "DAY 1" },
+        exercises = exercises.orEmpty().mapNotNull { it?.toRoutineExercise() }
+    )
 
-    private fun StoredWorkoutDay.toWorkoutDay(): WorkoutDay {
-        return WorkoutDay(
-            id = id.orEmpty().ifBlank { newId() },
-            name = name.orEmpty().ifBlank { "DAY 1" },
-            exercises = exercises.orEmpty().mapNotNull { it?.toRoutineExercise() }
-        )
-    }
+    private fun StoredRoutineExercise.toRoutineExercise() = RoutineExercise(
+        id = id.orEmpty().ifBlank { newId() },
+        exerciseId = exerciseId?.takeIf { it.isNotBlank() },
+        name = name.orEmpty().ifBlank { "Exercise" },
+        gifUrl = gifUrl?.takeIf { it.isNotBlank() },
+        mediaMimeType = mediaMimeType?.takeIf { it.isNotBlank() },
+        sets = sets.orEmpty().mapNotNull { it?.toWorkoutSet() }
+            .mapIndexed { i, s -> s.copy(setNo = i + 1) },
+        rest = rest.orEmpty(),
+        notes = notes.orEmpty(),
+        source = ExerciseSource.entries.firstOrNull { it.name.equals(source, ignoreCase = true) }
+            ?: ExerciseSource.BUILT_IN
+    )
 
-    private fun StoredRoutineExercise.toRoutineExercise(): RoutineExercise {
-        val parsedSets = sets.orEmpty()
-            .mapNotNull { it?.toWorkoutSet() }
-            .ifEmpty { defaultSets(3, "8-12", newId) }
-            .mapIndexed { index, set -> set.copy(setNo = index + 1) }
+    private fun StoredWorkoutSet.toWorkoutSet() = WorkoutSet(
+        id = id.orEmpty().ifBlank { newId() }, setNo = setNo?.takeIf { it > 0 } ?: 1,
+        reps = reps.orEmpty(), weight = weight.orEmpty(), completed = completed ?: false
+    )
 
-        return RoutineExercise(
-            id = id.orEmpty().ifBlank { newId() },
-            exerciseId = exerciseId?.takeIf { it.isNotBlank() },
-            name = name.orEmpty().ifBlank { "Exercise" },
-            gifUrl = gifUrl?.takeIf { it.isNotBlank() },
-            mediaMimeType = mediaMimeType?.takeIf { it.isNotBlank() },
-            sets = parsedSets,
-            rest = normalizeRest(rest.orEmpty().ifBlank { "2:00" }),
-            notes = notes.orEmpty(),
-            source = source.toExerciseSource(default = ExerciseSource.BUILT_IN)
-        )
-    }
-
-    private fun StoredWorkoutSet.toWorkoutSet(): WorkoutSet {
-        return WorkoutSet(
-            id = id.orEmpty().ifBlank { newId() },
-            setNo = setNo?.takeIf { it > 0 } ?: 1,
-            reps = reps.orEmpty(),
-            weight = weight.orEmpty(),
-            completed = completed ?: false
-        )
-    }
-
-    private fun StoredCustomExercise.toCustomExercise(): CustomExercise {
-        return CustomExercise(
-            id = id.orEmpty().ifBlank { newId() },
-            name = name.orEmpty().trim(),
-            sets = (sets ?: 3).coerceIn(1, 10),
-            reps = reps.orEmpty().ifBlank { "10" },
-            rest = normalizeRest(rest.orEmpty()),
-            mediaUrl = mediaUrl?.trim()?.takeIf { it.isNotBlank() },
-            mediaMimeType = mediaMimeType?.trim()?.takeIf { it.isNotBlank() },
-            source = ExerciseSource.CUSTOM
-        )
-    }
+    private fun StoredCustomExercise.toCustomExercise() = CustomExercise(
+        id = id.orEmpty().ifBlank { newId() },
+        name = name.orEmpty().trim(),
+        sets = (sets ?: 3).coerceIn(1, 10),
+        reps = reps.orEmpty().ifBlank { "10" },
+        rest = normalizeRest(rest.orEmpty()),
+        mediaUrl = mediaUrl?.trim()?.takeIf { it.isNotBlank() },
+        mediaMimeType = mediaMimeType?.trim()?.takeIf { it.isNotBlank() },
+        source = ExerciseSource.CUSTOM
+    )
 
     private fun RoutineExercise.toFallbackCustomExercise(preferredId: String): CustomExercise {
-        val repsValue = sets.map { it.reps.trim() }
-            .filter { it.isNotBlank() }
-            .distinct()
-            .singleOrNull()
+        val reps = sets.map { it.reps.trim() }.filter { it.isNotBlank() }.distinct().singleOrNull()
             ?: sets.firstOrNull()?.reps.orEmpty().ifBlank { "10" }
-
         return CustomExercise(
             id = preferredId,
             name = name.trim().ifBlank { "Custom Exercise" },
             sets = sets.size.coerceIn(1, 10),
-            reps = repsValue,
+            reps = reps,
             rest = normalizeRest(rest),
             mediaUrl = gifUrl?.takeIf { it.isNotBlank() },
             mediaMimeType = mediaMimeType?.takeIf { it.isNotBlank() },
@@ -348,35 +271,23 @@ internal class RoutinePersistence(
         )
     }
 
-    private fun Routine.rekeyForImport(customExerciseIdMap: Map<String, String>): Routine {
-        return copy(
-            id = newId(),
-            days = days.mapIndexed { dayIndex, day ->
-                day.copy(
-                    id = newId(),
-                    name = day.name.ifBlank { "DAY ${dayIndex + 1}" },
-                    exercises = day.exercises.map { exercise ->
-                        val remappedExerciseId = if (exercise.source == ExerciseSource.CUSTOM) {
-                            exercise.exerciseId?.let { customExerciseIdMap[it] ?: it }
-                        } else {
-                            exercise.exerciseId
-                        }
-
-                        exercise.copy(
-                            id = newId(),
-                            exerciseId = remappedExerciseId,
-                            sets = exercise.sets.mapIndexed { setIndex, set ->
-                                set.copy(
-                                    id = newId(),
-                                    setNo = setIndex + 1
-                                )
-                            }
-                        )
-                    }
-                )
-            }
-        )
-    }
+    private fun Routine.rekeyForImport(idMap: Map<String, String>) = copy(
+        id = newId(),
+        days = days.mapIndexed { di, day ->
+            day.copy(
+                id = newId(),
+                name = day.name.ifBlank { "DAY ${di + 1}" },
+                exercises = day.exercises.map { ex ->
+                    ex.copy(
+                        id = newId(),
+                        exerciseId = if (ex.source == ExerciseSource.CUSTOM) ex.exerciseId?.let {
+                            idMap[it] ?: it
+                        } else ex.exerciseId,
+                        sets = ex.sets.mapIndexed { si, s -> s.copy(id = newId(), setNo = si + 1) }
+                    )
+                })
+        }
+    )
 
     companion object {
         private const val KEY_APP_STATE = "app_state"
@@ -384,14 +295,3 @@ internal class RoutinePersistence(
         private const val KEY_CUSTOM_EXERCISES = "custom_exercises"
     }
 }
-
-private fun String?.toExerciseSource(default: ExerciseSource): ExerciseSource {
-    return ExerciseSource.entries
-        .firstOrNull { source -> source.name.equals(this, ignoreCase = true) }
-        ?: default
-}
-
-private fun ExerciseSource?.safeRoutineSource(): ExerciseSource {
-    return this ?: ExerciseSource.BUILT_IN
-}
-

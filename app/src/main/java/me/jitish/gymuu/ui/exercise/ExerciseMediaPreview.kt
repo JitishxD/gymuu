@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.FitnessCenter
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -27,16 +28,20 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
-import coil.ImageLoader
-import coil.compose.AsyncImage
-import coil.decode.GifDecoder
-import coil.decode.ImageDecoderDecoder
-import coil.disk.DiskCache
-import coil.memory.MemoryCache
-import coil.request.CachePolicy
-import coil.request.ImageRequest
+import coil3.ImageLoader
+import coil3.compose.AsyncImage
+import coil3.disk.DiskCache
+import coil3.gif.AnimatedImageDecoder
+import coil3.gif.GifDecoder
+import coil3.memory.MemoryCache
+import coil3.request.ImageRequest
+import coil3.request.allowHardware
+import coil3.request.crossfade
+import coil3.video.VideoFrameDecoder
+import coil3.video.videoFrameMillis
 import me.jitish.gymuu.ui.media.isVideoMedia
 import me.jitish.gymuu.ui.theme.GymuuMuted
+import okio.Path.Companion.toOkioPath
 
 @Composable
 internal fun ExerciseMediaPreview(
@@ -48,81 +53,78 @@ internal fun ExerciseMediaPreview(
     playWhenActive: Boolean = false,
     mediaActive: Boolean = true
 ) {
-    if (url.isNullOrBlank()) {
-        Box(modifier = modifier) {
-            MediaPlaceholder()
+    when {
+        url.isNullOrBlank() -> Box(modifier) { MediaPlaceholder() }
+        isVideoMedia(url, mimeType) && !showVideoControls -> Box(modifier) {
+            CoilImage(url = url, videoFrame = true, modifier = Modifier.matchParentSize())
+            Icon(
+                Icons.Default.PlayArrow,
+                null,
+                tint = Color.White,
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .size(28.dp)
+            )
         }
-        return
-    }
 
-    if (isVideoMedia(url, mimeType)) {
-        CustomExerciseVideoPreview(
-            url = url,
-            modifier = modifier,
-            loop = true,
-            showControls = showVideoControls,
-            resetKey = resetKey,
-            playWhenActive = playWhenActive,
-            mediaActive = mediaActive
+        isVideoMedia(url, mimeType) -> CustomExerciseVideoPreview(
+            url = url, modifier = modifier, loop = true, showControls = true,
+            resetKey = resetKey, playWhenActive = playWhenActive, mediaActive = mediaActive
         )
-    } else {
-        GifPreview(url = url, modifier = modifier)
+
+        else -> CoilImage(url = url, videoFrame = false, modifier = modifier)
     }
 }
 
 @Composable
 internal fun GifPreview(url: String?, modifier: Modifier = Modifier) {
-    val context = LocalContext.current
-    if (url.isNullOrBlank()) {
-        Box(modifier = modifier) {
-            MediaPlaceholder()
-        }
-        return
-    }
+    if (url.isNullOrBlank()) Box(modifier) { MediaPlaceholder() } else CoilImage(
+        url,
+        videoFrame = false,
+        modifier = modifier
+    )
+}
 
-    val appContext = context.applicationContext
-    val imageLoader = remember(appContext) { SharedGifImageLoader.get(appContext) }
-    var isLoading by remember(url) { mutableStateOf(true) }
-    var hasError by remember(url) { mutableStateOf(false) }
-    val model = remember(url) {
-        ImageRequest.Builder(appContext)
+@Composable
+private fun CoilImage(url: String, videoFrame: Boolean, modifier: Modifier) {
+    val context = LocalContext.current.applicationContext
+    val loader = remember { SharedImageLoader.get(context) }
+    var loading by remember(url) { mutableStateOf(true) }
+    var failed by remember(url) { mutableStateOf(false) }
+    val request = remember(url, videoFrame) {
+        ImageRequest.Builder(context)
             .data(url)
             .crossfade(false)
-            .allowHardware(false)
-            .memoryCachePolicy(CachePolicy.ENABLED)
-            .diskCachePolicy(CachePolicy.ENABLED)
-            .networkCachePolicy(CachePolicy.ENABLED)
+            .allowHardware(!videoFrame && !url.endsWith(".gif", ignoreCase = true))
+            .apply { if (videoFrame) videoFrameMillis(0) }
             .build()
     }
-
-    Box(modifier = modifier) {
+    Box(modifier) {
         AsyncImage(
-            model = model,
-            imageLoader = imageLoader,
+            model = request,
+            imageLoader = loader,
             contentDescription = null,
             contentScale = ContentScale.Fit,
             modifier = Modifier.matchParentSize(),
-            onLoading = {
-                isLoading = true
-                hasError = false
-            },
-            onSuccess = {
-                isLoading = false
-                hasError = false
-            },
-            onError = {
-                isLoading = false
-                hasError = true
-            }
+            onLoading = { loading = true; failed = false },
+            onSuccess = { loading = false; failed = false },
+            onError = { loading = false; failed = true }
         )
-        if (isLoading) {
-            Box(Modifier.matchParentSize().background(Color.White), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator(color = GymuuMuted, strokeWidth = 2.dp, modifier = Modifier.size(28.dp))
+        if (loading) {
+            Box(
+                Modifier
+                    .matchParentSize()
+                    .background(Color.White),
+                contentAlignment = Alignment.Center
+            ) {
+                CircularProgressIndicator(
+                    color = GymuuMuted,
+                    strokeWidth = 2.dp,
+                    modifier = Modifier.size(28.dp)
+                )
             }
         }
-        if (hasError) {
-            MediaPlaceholder()
-        }
+        if (failed) MediaPlaceholder()
     }
 }
 
@@ -132,17 +134,14 @@ internal fun ExerciseMediaFullscreenDialog(url: String, mimeType: String?, onDis
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false)
     ) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(Color.Black)
-        ) {
+        Box(Modifier
+            .fillMaxSize()
+            .background(Color.Black)) {
             if (isVideoMedia(url, mimeType)) {
                 CustomExerciseFullscreenVideoPlayer(url = url, modifier = Modifier.fillMaxSize())
             } else {
                 GifPreview(url = url, modifier = Modifier.fillMaxSize())
             }
-
             IconButton(
                 onClick = onDismiss,
                 modifier = Modifier
@@ -151,49 +150,50 @@ internal fun ExerciseMediaFullscreenDialog(url: String, mimeType: String?, onDis
                     .padding(10.dp)
                     .background(Color.Black.copy(alpha = 0.55f))
             ) {
-                Icon(Icons.Default.Close, contentDescription = "Close fullscreen", tint = Color.White)
+                Icon(
+                    Icons.Default.Close,
+                    contentDescription = "Close fullscreen",
+                    tint = Color.White
+                )
             }
         }
     }
 }
 
-private object SharedGifImageLoader {
+private object SharedImageLoader {
     @Volatile
     private var loader: ImageLoader? = null
 
-    fun get(context: Context): ImageLoader {
-        return loader ?: synchronized(this) {
-            loader ?: ImageLoader.Builder(context.applicationContext)
-                .components {
-                    if (Build.VERSION.SDK_INT >= 28) add(ImageDecoderDecoder.Factory()) else add(GifDecoder.Factory())
-                }
-                .memoryCache {
-                    MemoryCache.Builder(context.applicationContext)
-                        .maxSizePercent(0.25)
-                        .build()
-                }
-                .diskCache {
-                    DiskCache.Builder()
-                        .directory(context.cacheDir.resolve("image_cache"))
-                        .maxSizeBytes(256L * 1024L * 1024L)
-                        .build()
-                }
-                .respectCacheHeaders(false)
-                .crossfade(false)
-                .build()
-                .also { loader = it }
-        }
+    fun get(context: Context): ImageLoader = loader ?: synchronized(this) {
+        loader ?: ImageLoader.Builder(context)
+            .components {
+                if (Build.VERSION.SDK_INT >= 28) add(AnimatedImageDecoder.Factory()) else add(
+                    GifDecoder.Factory()
+                )
+                add(VideoFrameDecoder.Factory())
+            }
+            .memoryCache { MemoryCache.Builder().maxSizePercent(context, 0.25).build() }
+            .diskCache {
+                DiskCache.Builder()
+                    .directory(context.cacheDir.resolve("image_cache").toOkioPath())
+                    .maxSizeBytes(256L * 1024L * 1024L)
+                    .build()
+            }
+            .build()
+            .also { loader = it }
     }
 }
 
 @Composable
 private fun MediaPlaceholder() {
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color.White),
-        contentAlignment = Alignment.Center
-    ) {
-        Icon(Icons.Default.FitnessCenter, contentDescription = null, tint = Color(0xFF333333), modifier = Modifier.size(32.dp))
+    Box(Modifier
+        .fillMaxSize()
+        .background(Color.White), contentAlignment = Alignment.Center) {
+        Icon(
+            Icons.Default.FitnessCenter,
+            contentDescription = null,
+            tint = Color(0xFF333333),
+            modifier = Modifier.size(32.dp)
+        )
     }
 }

@@ -2,51 +2,69 @@ package me.jitish.gymuu.ui.exercise
 
 import android.content.Context
 import androidx.core.content.edit
-import com.google.gson.Gson
 import me.jitish.gymuu.ui.RestTimerState
+import org.json.JSONObject
 
+/** Persists scheduled timers. Explicit JSON so R8 obfuscation can't break stored data. */
 internal object RestTimerAlarmStore {
     private const val PREFS_NAME = "gymuu_rest_timer_alarms"
     private const val TIMER_PREFIX = "timer_"
-    private const val APP_FOREGROUND_KEY = "app_foreground"
 
-    private val gson = Gson()
-
-    fun saveTimer(context: Context, timer: RestTimerState) {
-        prefs(context).edit {
-            putString(timerKey(timer.routineExerciseId), gson.toJson(timer))
+    fun save(context: Context, timer: RestTimerState) {
+        prefs(context).edit(commit = true) {
+            putString(
+                key(timer.routineExerciseId),
+                timer.toJson()
+            )
         }
     }
 
-    fun removeTimer(context: Context, routineExerciseId: String) {
-        prefs(context).edit {
-            remove(timerKey(routineExerciseId))
+    fun remove(context: Context, id: String) {
+        prefs(context).edit(commit = true) { remove(key(id)) }
+    }
+
+    fun load(context: Context, id: String): RestTimerState? =
+        prefs(context).getString(key(id), null)?.let(::parse)
+
+    fun loadAll(context: Context): List<RestTimerState> =
+        prefs(context).all.mapNotNull { (k, v) ->
+            if (k.startsWith(TIMER_PREFIX) && v is String) parse(
+                v
+            ) else null
         }
+
+    /** Atomically takes ownership of a finished timer. Only one caller ever gets non-null. */
+    @Synchronized
+    fun claim(context: Context, id: String): RestTimerState? {
+        val timer = load(context, id) ?: return null
+        remove(context, id)
+        return timer
     }
 
-    fun loadTimer(context: Context, routineExerciseId: String): RestTimerState? {
-        val json = prefs(context).getString(timerKey(routineExerciseId), null) ?: return null
-        return runCatching { gson.fromJson(json, RestTimerState::class.java) }.getOrNull()
-    }
+    private fun prefs(context: Context) =
+        context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
-    fun loadTimers(context: Context): List<RestTimerState> {
-        return prefs(context).all.mapNotNull { (key, value) ->
-            if (!key.startsWith(TIMER_PREFIX) || value !is String) return@mapNotNull null
-            runCatching { gson.fromJson(value, RestTimerState::class.java) }.getOrNull()
-        }
-    }
+    private fun key(id: String) = "$TIMER_PREFIX$id"
 
-    fun setAppForeground(context: Context, foreground: Boolean) {
-        prefs(context).edit {
-            putBoolean(APP_FOREGROUND_KEY, foreground)
-        }
-    }
+    private fun RestTimerState.toJson(): String = JSONObject()
+        .put("routineId", routineId).put("dayId", dayId)
+        .put("routineExerciseId", routineExerciseId).put("exerciseName", exerciseName)
+        .put("totalSeconds", totalSeconds).put("remainingSeconds", remainingSeconds)
+        .put("endElapsedRealtimeMillis", endElapsedRealtimeMillis)
+        .put("endWallClockMillis", endWallClockMillis)
+        .toString()
 
-    fun isAppForeground(context: Context): Boolean {
-        return prefs(context).getBoolean(APP_FOREGROUND_KEY, false)
-    }
-
-    private fun prefs(context: Context) = context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-
-    private fun timerKey(routineExerciseId: String) = "$TIMER_PREFIX$routineExerciseId"
+    private fun parse(json: String): RestTimerState? = runCatching {
+        val o = JSONObject(json)
+        RestTimerState(
+            routineId = o.getString("routineId"),
+            dayId = o.getString("dayId"),
+            routineExerciseId = o.getString("routineExerciseId"),
+            exerciseName = o.optString("exerciseName"),
+            totalSeconds = o.getInt("totalSeconds"),
+            remainingSeconds = o.optInt("remainingSeconds"),
+            endElapsedRealtimeMillis = o.getLong("endElapsedRealtimeMillis"),
+            endWallClockMillis = o.getLong("endWallClockMillis")
+        )
+    }.getOrNull()
 }

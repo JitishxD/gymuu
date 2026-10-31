@@ -71,6 +71,7 @@ internal fun SettingsScreen(
                 )
             }
             item { SectionHeading("REST TIMER") }
+            item { AlertPermissionsPanel() }
             item {
                 VibrationIntensityPanel(
                     intensity = state.vibrationIntensity,

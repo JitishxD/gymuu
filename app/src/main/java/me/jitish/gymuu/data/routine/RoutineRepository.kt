@@ -2,15 +2,23 @@ package me.jitish.gymuu.data.routine
 
 import android.content.Context
 import com.google.gson.Gson
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.launch
 import me.jitish.gymuu.data.exercise.Exercise
 import java.util.UUID
 
-class RoutineRepository(context: Context) {
+/**
+ * In-memory source of truth. Edits update the flows immediately; disk writes are
+ * debounced onto IO so typing in reps/weight/notes never blocks the main thread.
+ */
+class RoutineRepository(context: Context, private val scope: CoroutineScope) {
     private val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-    private val gson = Gson()
-    private val persistence = RoutinePersistence(prefs = prefs, gson = gson, newId = ::newId)
+    private val persistence = RoutinePersistence(prefs, Gson(), ::newId)
     private val initialState = persistence.loadState()
 
     private val _routines = MutableStateFlow(initialState.routines)
@@ -19,118 +27,130 @@ class RoutineRepository(context: Context) {
     private val _customExercises = MutableStateFlow(initialState.customExercises)
     val customExercises: StateFlow<List<CustomExercise>> = _customExercises
 
+    private var pendingSave: Job? = null
+
+    fun flush() {
+        pendingSave?.cancel()
+        pendingSave = null
+        persistNow()
+    }
+
+    @Synchronized
+    private fun persistNow() {
+        persistence.persistState(_routines.value, _customExercises.value)
+    }
+
+    private fun scheduleSave() {
+        pendingSave?.cancel()
+        pendingSave = scope.launch(Dispatchers.IO) {
+            delay(SAVE_DEBOUNCE_MS)
+            persistNow()
+        }
+    }
+
     fun createRoutine(name: String) {
-        val cleanName = name.trim().ifBlank { "New Routine" }
         val routine = Routine(
-            id = newId(),
-            name = cleanName,
-            days = listOf(WorkoutDay(id = newId(), name = "DAY 1"))
+            newId(),
+            name.trim().ifBlank { "New Routine" },
+            listOf(WorkoutDay(newId(), "DAY 1"))
         )
-        updateRoutines(_routines.value + routine)
+        setRoutines(_routines.value + routine)
     }
 
     fun updateRoutineName(routineId: String, name: String) {
-        updateRoutines(
-            _routines.value.map { routine ->
-                if (routine.id == routineId) routine.copy(name = name.trim().ifBlank { routine.name }) else routine
-            }
-        )
+        updateRoutine(routineId) { it.copy(name = name.trim().ifBlank { it.name }) }
     }
 
     fun deleteRoutine(routineId: String) {
-        updateRoutines(_routines.value.filterNot { it.id == routineId }.ifEmpty { persistence.defaultRoutines() })
+        setRoutines(_routines.value.filterNot { it.id == routineId }
+            .ifEmpty { persistence.defaultRoutines() })
     }
 
     fun addDay(routineId: String): WorkoutDay? {
-        var createdDay: WorkoutDay? = null
+        var created: WorkoutDay? = null
         updateRoutine(routineId) { routine ->
-            val currentDays = routine.days
-            val newDay = WorkoutDay(id = newId(), name = nextDayName(currentDays))
-            createdDay = newDay
-            routine.copy(days = currentDays + newDay)
+            WorkoutDay(newId(), nextDayName(routine.days)).also { created = it }
+                .let { routine.copy(days = routine.days + it) }
         }
-        return createdDay
+        return created
     }
 
     fun updateDayName(routineId: String, dayId: String, name: String) {
-        val cleanName = name.trim()
-        if (cleanName.isBlank()) return
-        updateDay(routineId, dayId) { day -> day.copy(name = cleanName) }
+        val clean = name.trim()
+        if (clean.isNotBlank()) updateDay(routineId, dayId) { it.copy(name = clean) }
     }
 
     fun removeDay(routineId: String, dayId: String) {
         updateRoutine(routineId) { routine ->
-            val remaining = routine.days.filterNot { it.id == dayId }
-            val safeDays = if (remaining.isEmpty()) listOf(WorkoutDay(id = newId(), name = "DAY 1")) else remaining
-            routine.copy(days = safeDays)
+            routine.copy(days = routine.days.filterNot { it.id == dayId }
+                .ifEmpty { listOf(WorkoutDay(newId(), "DAY 1")) })
         }
     }
 
-    fun addBuiltInExercise(routineId: String, dayId: String, exercise: Exercise) {
-        val routineExercise = RoutineExercise(
+    fun addBuiltInExercise(routineId: String, dayId: String, exercise: Exercise) = addExerciseToDay(
+        routineId, dayId,
+        RoutineExercise(
             id = newId(),
             exerciseId = exercise.exerciseId,
             name = exercise.name,
             gifUrl = exercise.gifUrl,
             mediaMimeType = "image/gif",
-            sets = defaultSets(count = 3, reps = "8-12", newId = ::newId),
+            sets = defaultSets(3, "8-12", ::newId),
             rest = "2:00",
             source = ExerciseSource.BUILT_IN
         )
-        addExerciseToDay(routineId, dayId, routineExercise)
-    }
+    )
 
-    fun addCustomExercise(routineId: String, dayId: String, exercise: CustomExercise) {
-        val reps = exercise.reps.ifBlank { "10" }
-        val routineExercise = RoutineExercise(
-            id = newId(),
-            exerciseId = exercise.id,
-            name = exercise.name,
-            gifUrl = exercise.mediaUrl,
-            mediaMimeType = exercise.mediaMimeType,
-            sets = defaultSets(count = exercise.sets, reps = reps, newId = ::newId),
-            rest = normalizeRest(exercise.rest),
-            source = ExerciseSource.CUSTOM
-        )
-        addExerciseToDay(routineId, dayId, routineExercise)
-    }
-
-    fun swapWithBuiltInExercise(routineId: String, dayId: String, routineExerciseId: String, exercise: Exercise) {
-        updateExercise(routineId, dayId, routineExerciseId) { current ->
-            current.copy(
-                exerciseId = exercise.exerciseId,
-                name = exercise.name,
-                gifUrl = exercise.gifUrl,
-                mediaMimeType = "image/gif",
-                source = ExerciseSource.BUILT_IN
-            )
-        }
-    }
-
-    fun swapWithCustomExercise(routineId: String, dayId: String, routineExerciseId: String, exercise: CustomExercise) {
-        updateExercise(routineId, dayId, routineExerciseId) { current ->
-            current.copy(
+    fun addCustomExercise(routineId: String, dayId: String, exercise: CustomExercise) =
+        addExerciseToDay(
+            routineId, dayId,
+            RoutineExercise(
+                id = newId(),
                 exerciseId = exercise.id,
                 name = exercise.name,
                 gifUrl = exercise.mediaUrl,
                 mediaMimeType = exercise.mediaMimeType,
+                sets = defaultSets(exercise.sets, exercise.reps.ifBlank { "10" }, ::newId),
+                rest = normalizeRest(exercise.rest),
                 source = ExerciseSource.CUSTOM
             )
-        }
-    }
+        )
 
-    fun removeExercise(routineId: String, dayId: String, routineExerciseId: String) {
-        updateDay(routineId, dayId) { day ->
-            day.copy(exercises = day.exercises.filterNot { it.id == routineExerciseId })
+    fun swapWithBuiltInExercise(
+        routineId: String,
+        dayId: String,
+        routineExerciseId: String,
+        exercise: Exercise
+    ) =
+        updateExercise(routineId, dayId, routineExerciseId) {
+            it.copy(
+                exerciseId = exercise.exerciseId, name = exercise.name, gifUrl = exercise.gifUrl,
+                mediaMimeType = "image/gif", source = ExerciseSource.BUILT_IN
+            )
         }
-    }
 
-    fun removeExercises(routineId: String, dayId: String, routineExerciseIds: Set<String>) {
-        if (routineExerciseIds.isEmpty()) return
-
-        updateDay(routineId, dayId) { day ->
-            day.copy(exercises = day.exercises.filterNot { it.id in routineExerciseIds })
+    fun swapWithCustomExercise(
+        routineId: String,
+        dayId: String,
+        routineExerciseId: String,
+        exercise: CustomExercise
+    ) =
+        updateExercise(routineId, dayId, routineExerciseId) {
+            it.copy(
+                exerciseId = exercise.id, name = exercise.name, gifUrl = exercise.mediaUrl,
+                mediaMimeType = exercise.mediaMimeType, source = ExerciseSource.CUSTOM
+            )
         }
+
+    fun removeExercise(routineId: String, dayId: String, routineExerciseId: String) =
+        removeExercises(routineId, dayId, setOf(routineExerciseId))
+
+    fun removeExercises(routineId: String, dayId: String, ids: Set<String>) {
+        if (ids.isEmpty()) return
+        updateDay(
+            routineId,
+            dayId
+        ) { day -> day.copy(exercises = day.exercises.filterNot { it.id in ids }) }
     }
 
     fun pasteExercisesToDay(
@@ -140,15 +160,12 @@ class RoutineRepository(context: Context) {
         anchorExerciseId: String? = null,
         position: RoutineExercisePastePosition = RoutineExercisePastePosition.END
     ) {
-        val copiedExercises = exercises.map { it.copyForPaste() }
-        if (copiedExercises.isEmpty()) return
-
+        val copies = exercises.map { it.copyForPaste() }
+        if (copies.isEmpty()) return
         updateDay(routineId, dayId) { day ->
-            val insertIndex = day.insertIndexFor(anchorExerciseId, position)
-            val updatedExercises = day.exercises.toMutableList().apply {
-                addAll(insertIndex, copiedExercises)
-            }
-            day.copy(exercises = updatedExercises)
+            day.copy(
+                exercises = day.exercises.toMutableList()
+                    .apply { addAll(day.insertIndexFor(anchorExerciseId, position), copies) })
         }
     }
 
@@ -158,271 +175,188 @@ class RoutineRepository(context: Context) {
         exercises: List<IndexedValue<RoutineExercise>>
     ): Int {
         if (exercises.isEmpty()) return 0
-
-        var restoredCount = 0
+        var restored = 0
         updateDay(routineId, dayId) { day ->
-            val existingExerciseIds = day.exercises.map { it.id }.toSet()
-            val exercisesToRestore = exercises
-                .filter { it.value.id !in existingExerciseIds }
-                .sortedBy { it.index }
-
-            if (exercisesToRestore.isEmpty()) return@updateDay day
-
-            val updatedExercises = day.exercises.toMutableList()
-            exercisesToRestore.forEach { exercise ->
-                updatedExercises.add(exercise.index.coerceIn(0, updatedExercises.size), exercise.value)
-            }
-            restoredCount = exercisesToRestore.size
-            day.copy(exercises = updatedExercises)
+            val existing = day.exercises.mapTo(HashSet()) { it.id }
+            val toRestore = exercises.filter { it.value.id !in existing }.sortedBy { it.index }
+            if (toRestore.isEmpty()) return@updateDay day
+            val list = day.exercises.toMutableList()
+            toRestore.forEach { list.add(it.index.coerceIn(0, list.size), it.value) }
+            restored = toRestore.size
+            day.copy(exercises = list)
         }
-        return restoredCount
+        return restored
     }
 
     fun moveExercise(routineId: String, dayId: String, routineExerciseId: String, offset: Int) {
         if (offset == 0) return
-
         updateDay(routineId, dayId) { day ->
-            val currentIndex = day.exercises.indexOfFirst { it.id == routineExerciseId }
-            if (currentIndex == -1) return@updateDay day
-
-            val targetIndex = (currentIndex + offset).coerceIn(0, day.exercises.lastIndex)
-            if (targetIndex == currentIndex) return@updateDay day
-
-            val reorderedExercises = day.exercises.toMutableList()
-            val movedExercise = reorderedExercises.removeAt(currentIndex)
-            reorderedExercises.add(targetIndex, movedExercise)
-            day.copy(exercises = reorderedExercises)
+            val from = day.exercises.indexOfFirst { it.id == routineExerciseId }
+            if (from == -1) return@updateDay day
+            val to = (from + offset).coerceIn(0, day.exercises.lastIndex)
+            if (to == from) return@updateDay day
+            day.copy(exercises = day.exercises.toMutableList().apply { add(to, removeAt(from)) })
         }
     }
 
-    fun addSet(routineId: String, dayId: String, routineExerciseId: String) {
-        updateExercise(routineId, dayId, routineExerciseId) { exercise ->
-            val currentSets = exercise.sets
-            val nextSet = WorkoutSet(
-                id = newId(),
-                setNo = currentSets.size + 1,
-                reps = currentSets.lastOrNull()?.reps ?: "8-12",
-                weight = currentSets.lastOrNull()?.weight.orEmpty()
+    fun addSet(routineId: String, dayId: String, routineExerciseId: String) =
+        updateExercise(routineId, dayId, routineExerciseId) { ex ->
+            val last = ex.sets.lastOrNull()
+            ex.copy(
+                sets = ex.sets + WorkoutSet(
+                    newId(),
+                    ex.sets.size + 1,
+                    last?.reps ?: "8-12",
+                    last?.weight.orEmpty()
+                )
             )
-            exercise.copy(sets = currentSets + nextSet)
         }
-    }
 
-    fun removeSet(routineId: String, dayId: String, routineExerciseId: String, setId: String) {
-        updateExercise(routineId, dayId, routineExerciseId) { exercise ->
-            val remaining = exercise.sets.filterNot { it.id == setId }
-            exercise.copy(sets = remaining.mapIndexed { index, set -> set.copy(setNo = index + 1) })
+    /** Removing the last set leaves zero sets (it no longer silently re-adds three). */
+    fun removeSet(routineId: String, dayId: String, routineExerciseId: String, setId: String) =
+        updateExercise(routineId, dayId, routineExerciseId) { ex ->
+            ex.copy(sets = ex.sets.filterNot { it.id == setId }
+                .mapIndexed { i, s -> s.copy(setNo = i + 1) })
         }
-    }
 
     fun updateSet(
-        routineId: String,
-        dayId: String,
-        routineExerciseId: String,
-        setId: String,
-        reps: String? = null,
-        weight: String? = null,
-        completed: Boolean? = null
-    ) {
-        updateExercise(routineId, dayId, routineExerciseId) { exercise ->
-            exercise.copy(
-                sets = exercise.sets.map { set ->
-                    if (set.id == setId) {
-                        set.copy(
-                            reps = reps ?: set.reps,
-                            weight = weight ?: set.weight,
-                            completed = completed ?: set.completed
-                        )
-                    } else {
-                        set
-                    }
-                }
+        routineId: String, dayId: String, routineExerciseId: String, setId: String,
+        reps: String? = null, weight: String? = null, completed: Boolean? = null
+    ) = updateExercise(routineId, dayId, routineExerciseId) { ex ->
+        ex.copy(sets = ex.sets.map { s ->
+            if (s.id == setId) s.copy(
+                reps = reps ?: s.reps,
+                weight = weight ?: s.weight,
+                completed = completed ?: s.completed
+            ) else s
+        })
+    }
+
+    fun updateRest(routineId: String, dayId: String, routineExerciseId: String, rest: String) =
+        updateExercise(routineId, dayId, routineExerciseId) {
+            if (it.rest == rest) it else it.copy(
+                rest = rest
             )
         }
-    }
 
-    fun updateRest(routineId: String, dayId: String, routineExerciseId: String, rest: String) {
-        updateExercise(routineId, dayId, routineExerciseId) { it.copy(rest = rest) }
-    }
-
-    fun updateNotes(routineId: String, dayId: String, routineExerciseId: String, notes: String) {
+    fun updateNotes(routineId: String, dayId: String, routineExerciseId: String, notes: String) =
         updateExercise(routineId, dayId, routineExerciseId) { it.copy(notes = notes) }
-    }
 
     fun upsertCustomExercise(draft: CreateExerciseDraft) {
         val exercise = CustomExercise(
-            id = draft.id ?: newId(),
-            name = draft.name.trim(),
-            sets = draft.sets.coerceIn(1, 10),
-            reps = draft.reps.trim().ifBlank { "10" },
-            rest = normalizeRest(draft.rest),
+            id = draft.id ?: newId(), name = draft.name.trim(), sets = draft.sets.coerceIn(1, 10),
+            reps = draft.reps.trim().ifBlank { "10" }, rest = normalizeRest(draft.rest),
             mediaUrl = draft.mediaUrl?.trim()?.takeIf { it.isNotBlank() },
             mediaMimeType = draft.mediaMimeType?.trim()?.takeIf { it.isNotBlank() }
         )
         if (exercise.name.isBlank()) return
 
         val existing = _customExercises.value
-        val previousExercise = draft.id?.let { id -> existing.firstOrNull { it.id == id } }
-        val updated = if (draft.id == null) {
-            existing + exercise
-        } else {
-            existing.map { if (it.id == draft.id) exercise else it }
-        }
+        val previous = draft.id?.let { id -> existing.firstOrNull { it.id == id } }
+        val updated =
+            if (previous == null) existing + exercise else existing.map { if (it.id == exercise.id) exercise else it }
+        val customs = persistence.sanitizeCustomExercises(updated)
+        val saved = customs.firstOrNull { it.id == exercise.id } ?: return
 
-        val sanitizedCustomExercises = persistence.sanitizeCustomExercises(updated)
-        val savedExercise = sanitizedCustomExercises.firstOrNull { it.id == exercise.id } ?: return
-        val sanitizedRoutines = persistence.sanitizeRoutines(
-            if (previousExercise == null) {
-                _routines.value
-            } else {
-                _routines.value.syncCustomExercise(previousExercise, savedExercise)
-            }
-        )
-
-        _customExercises.value = sanitizedCustomExercises
-        _routines.value = sanitizedRoutines
-        persistence.persistState(routines = sanitizedRoutines, customExercises = sanitizedCustomExercises)
+        _customExercises.value = customs
+        if (previous != null) _routines.value = _routines.value.syncCustomExercise(previous, saved)
+        scheduleSave()
     }
 
     fun deleteCustomExercise(exerciseId: String) {
-        updateCustomExercises(_customExercises.value.filterNot { it.id == exerciseId })
+        _customExercises.value = _customExercises.value.filterNot { it.id == exerciseId }
+        scheduleSave()
     }
 
-    /**
-     * Refreshes the [gifUrl] of every [ExerciseSource.BUILT_IN] routine exercise
-     * whose URL has drifted from the current asset-JSON value.  This keeps saved
-     * routines in sync when the CDN host or path changes between app updates.
-     */
+    /** Keeps saved routines in sync when the bundled GIF URLs change between app updates. */
     fun refreshBuiltInGifUrls(exercises: List<Exercise>) {
         if (exercises.isEmpty()) return
-
         val urlById = exercises.associate { it.exerciseId to it.gifUrl }
         var changed = false
-
-        val updatedRoutines = _routines.value.map { routine ->
-            routine.copy(
-                days = routine.days.map { day ->
-                    day.copy(
-                        exercises = day.exercises.map { exercise ->
-                            if (exercise.source == ExerciseSource.BUILT_IN && !exercise.exerciseId.isNullOrBlank()) {
-                                val currentUrl = urlById[exercise.exerciseId]
-                                if (currentUrl != null && currentUrl != exercise.gifUrl) {
-                                    changed = true
-                                    exercise.copy(gifUrl = currentUrl)
-                                } else {
-                                    exercise
-                                }
-                            } else {
-                                exercise
-                            }
-                        }
-                    )
-                }
-            )
+        val updated = _routines.value.map { r ->
+            r.copy(days = r.days.map { d ->
+                d.copy(exercises = d.exercises.map { ex ->
+                    val url = ex.exerciseId?.let(urlById::get)
+                    if (ex.source == ExerciseSource.BUILT_IN && url != null && url != ex.gifUrl) {
+                        changed = true; ex.copy(gifUrl = url)
+                    } else ex
+                })
+            })
         }
-
         if (changed) {
-            _routines.value = updatedRoutines
-            persistence.persistState(routines = updatedRoutines, customExercises = _customExercises.value)
+            _routines.value = updated; scheduleSave()
         }
     }
 
-    fun exportBackup(): String {
-        return persistence.exportBackup(
-            routines = _routines.value,
-            customExercises = _customExercises.value
+    fun exportBackup(): String = persistence.exportBackup(_routines.value, _customExercises.value)
+
+    fun importBackup(json: String): Result<String> =
+        persistence.importBackup(json, _routines.value, _customExercises.value).map { merged ->
+            _routines.value = merged.routines
+            _customExercises.value = merged.customExercises
+            flush()
+            val routines =
+                if (merged.routinesAdded == 1) "1 routine" else "${merged.routinesAdded} routines"
+            val customs =
+                if (merged.customExercisesAdded == 1) "1 new custom exercise" else "${merged.customExercisesAdded} new custom exercises"
+            "Imported $routines and $customs. Your existing routines were kept."
+        }
+
+    private fun addExerciseToDay(routineId: String, dayId: String, exercise: RoutineExercise) =
+        updateDay(routineId, dayId) { it.copy(exercises = it.exercises + exercise) }
+
+    private fun RoutineExercise.copyForPaste() = copy(
+        id = newId(),
+        sets = sets.mapIndexed { i, s -> s.copy(id = newId(), setNo = i + 1, completed = false) }
+    )
+
+    private fun WorkoutDay.insertIndexFor(
+        anchorId: String?,
+        position: RoutineExercisePastePosition
+    ): Int {
+        if (position == RoutineExercisePastePosition.END || anchorId.isNullOrBlank()) return exercises.size
+        val anchor = exercises.indexOfFirst { it.id == anchorId }
+        if (anchor == -1) return exercises.size
+        return (if (position == RoutineExercisePastePosition.BEFORE) anchor else anchor + 1).coerceIn(
+            0,
+            exercises.size
         )
     }
 
-    fun importBackup(json: String): Result<String> {
-        return persistence.importBackup(
-            json = json,
-            currentRoutines = _routines.value,
-            currentCustomExercises = _customExercises.value
-        ).map { mergedState ->
-            _routines.value = mergedState.routines
-            _customExercises.value = mergedState.customExercises
-            persistence.persistState(mergedState.routines, mergedState.customExercises)
-
-            val routineLabel = if (mergedState.routinesAdded == 1) "1 routine" else "${mergedState.routinesAdded} routines"
-            val customExerciseLabel = if (mergedState.customExercisesAdded == 1) {
-                "1 new custom exercise"
-            } else {
-                "${mergedState.customExercisesAdded} new custom exercises"
-            }
-            "Imported $routineLabel and $customExerciseLabel. Your existing routines were kept."
-        }
+    private fun List<Routine>.syncCustomExercise(
+        previous: CustomExercise,
+        updated: CustomExercise
+    ) = map { r ->
+        r.copy(days = r.days.map { d ->
+            d.copy(exercises = d.exercises.map {
+                it.syncCustomExercise(
+                    previous,
+                    updated
+                )
+            })
+        })
     }
 
-    private fun addExerciseToDay(routineId: String, dayId: String, exercise: RoutineExercise) {
-        updateDay(routineId, dayId) { day ->
-            day.copy(exercises = day.exercises + exercise)
-        }
-    }
-
-    private fun RoutineExercise.copyForPaste(): RoutineExercise {
-        val copiedSets = sets
-            .ifEmpty { defaultSets(3, "8-12", ::newId) }
-            .mapIndexed { index, set ->
-                set.copy(
-                    id = newId(),
-                    setNo = index + 1,
-                    completed = false
+    private fun RoutineExercise.syncCustomExercise(
+        previous: CustomExercise,
+        updated: CustomExercise
+    ): RoutineExercise {
+        if (source != ExerciseSource.CUSTOM || exerciseId != updated.id) return this
+        val prevReps = previous.reps.ifBlank { "10" }
+        val newReps = updated.reps.ifBlank { "10" }
+        val untouched = sets.size == previous.sets.coerceIn(1, 10) &&
+                sets.all { it.reps == prevReps && it.weight.isBlank() && !it.completed }
+        val syncedSets = if (untouched) {
+            List(updated.sets.coerceIn(1, 10)) { i ->
+                sets.getOrNull(i)?.copy(setNo = i + 1, reps = newReps) ?: WorkoutSet(
+                    newId(),
+                    i + 1,
+                    newReps
                 )
             }
-
-        return copy(
-            id = newId(),
-            sets = copiedSets
-        )
-    }
-
-    private fun WorkoutDay.insertIndexFor(anchorExerciseId: String?, position: RoutineExercisePastePosition): Int {
-        if (position == RoutineExercisePastePosition.END || anchorExerciseId.isNullOrBlank()) {
-            return exercises.size
-        }
-
-        val anchorIndex = exercises.indexOfFirst { it.id == anchorExerciseId }
-        if (anchorIndex == -1) return exercises.size
-
-        return when (position) {
-            RoutineExercisePastePosition.BEFORE -> anchorIndex
-            RoutineExercisePastePosition.AFTER -> anchorIndex + 1
-        }.coerceIn(0, exercises.size)
-    }
-
-    private fun List<Routine>.syncCustomExercise(previous: CustomExercise, updated: CustomExercise): List<Routine> {
-        return map { routine ->
-            routine.copy(
-                days = routine.days.map { day ->
-                    day.copy(
-                        exercises = day.exercises.map { exercise ->
-                            exercise.syncCustomExercise(previous, updated)
-                        }
-                    )
-                }
-            )
-        }
-    }
-
-    private fun RoutineExercise.syncCustomExercise(previous: CustomExercise, updated: CustomExercise): RoutineExercise {
-        if (source != ExerciseSource.CUSTOM || exerciseId != updated.id) return this
-
-        val previousReps = previous.reps.ifBlank { "10" }
-        val updatedReps = updated.reps.ifBlank { "10" }
-        val setsStillMatchPreviousDefaults = sets.size == previous.sets.coerceIn(1, 10) &&
-            sets.all { set -> set.reps == previousReps && set.weight.isBlank() && !set.completed }
-        val syncedSets = if (setsStillMatchPreviousDefaults) {
-            List(updated.sets.coerceIn(1, 10)) { index ->
-                sets.getOrNull(index)?.copy(setNo = index + 1, reps = updatedReps, completed = false)
-                    ?: WorkoutSet(id = newId(), setNo = index + 1, reps = updatedReps)
-            }
-        } else {
-            sets
-        }
-
-        val syncedRest = if (rest == normalizeRest(previous.rest)) normalizeRest(updated.rest) else rest
-
+        } else sets
+        val syncedRest =
+            if (rest == normalizeRest(previous.rest)) normalizeRest(updated.rest) else rest
         return copy(
             name = updated.name,
             gifUrl = updated.mediaUrl,
@@ -432,51 +366,41 @@ class RoutineRepository(context: Context) {
         )
     }
 
-    private fun updateExercise(routineId: String, dayId: String, routineExerciseId: String, transform: (RoutineExercise) -> RoutineExercise) {
-        updateDay(routineId, dayId) { day ->
-            day.copy(
-                exercises = day.exercises.map { exercise ->
-                    if (exercise.id == routineExerciseId) transform(exercise) else exercise
-                }
-            )
-        }
-    }
+    private fun updateExercise(
+        routineId: String,
+        dayId: String,
+        exerciseId: String,
+        transform: (RoutineExercise) -> RoutineExercise
+    ) =
+        updateDay(
+            routineId,
+            dayId
+        ) { day -> day.copy(exercises = day.exercises.map { if (it.id == exerciseId) transform(it) else it }) }
 
-    private fun updateDay(routineId: String, dayId: String, transform: (WorkoutDay) -> WorkoutDay) {
-        updateRoutine(routineId) { routine ->
-            routine.copy(days = routine.days.map { day -> if (day.id == dayId) transform(day) else day })
-        }
-    }
+    private fun updateDay(routineId: String, dayId: String, transform: (WorkoutDay) -> WorkoutDay) =
+        updateRoutine(routineId) { r -> r.copy(days = r.days.map { if (it.id == dayId) transform(it) else it }) }
 
-    private fun updateRoutine(routineId: String, transform: (Routine) -> Routine) {
-        updateRoutines(_routines.value.map { routine -> if (routine.id == routineId) transform(routine) else routine })
-    }
+    private fun updateRoutine(routineId: String, transform: (Routine) -> Routine) =
+        setRoutines(_routines.value.map { if (it.id == routineId) transform(it) else it })
 
-    private fun updateRoutines(routines: List<Routine>) {
-        val sanitized = persistence.sanitizeRoutines(routines)
-        _routines.value = sanitized
-        persistence.persistState(routines = sanitized, customExercises = _customExercises.value)
-    }
-
-    private fun updateCustomExercises(exercises: List<CustomExercise>) {
-        val sanitized = persistence.sanitizeCustomExercises(exercises)
-        _customExercises.value = sanitized
-        persistence.persistState(routines = _routines.value, customExercises = sanitized)
+    private fun setRoutines(routines: List<Routine>) {
+        if (routines == _routines.value) return
+        _routines.value = routines
+        scheduleSave()
     }
 
     private fun nextDayName(days: List<WorkoutDay>): String {
-        val used = days.mapNotNull { day ->
-            DAY_NAME_REGEX.matchEntire(day.name.safeString().trim())?.groupValues?.getOrNull(1)?.toIntOrNull()
-        }.toSet()
-        val next = generateSequence(1) { it + 1 }.first { it !in used }
-        return "DAY $next"
+        val used = days.mapNotNullTo(HashSet()) {
+            DAY_NAME_REGEX.matchEntire(it.name.trim())?.groupValues?.get(1)?.toIntOrNull()
+        }
+        return "DAY ${generateSequence(1) { it + 1 }.first { it !in used }}"
     }
 
     private fun newId(): String = UUID.randomUUID().toString()
 
     companion object {
         private const val PREFS_NAME = "gymuu_user_data"
+        private const val SAVE_DEBOUNCE_MS = 400L
         private val DAY_NAME_REGEX = Regex("DAY\\s+(\\d+)", RegexOption.IGNORE_CASE)
     }
 }
-
