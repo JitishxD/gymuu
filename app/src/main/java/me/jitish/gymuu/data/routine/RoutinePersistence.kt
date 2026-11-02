@@ -21,16 +21,8 @@ internal class RoutinePersistence(
     fun exportBackup(routines: List<Routine>, customExercises: List<CustomExercise>): String =
         gson.toJson(PersistedAppState.fromDomain(routines, customExercises))
 
-    fun importBackup(
-        json: String,
-        currentRoutines: List<Routine>,
-        currentCustomExercises: List<CustomExercise>
-    ) = runCatching {
-        val imported =
-            parseAppState(json) ?: error("This file doesn't contain a valid Gymuu routines backup.")
-        if (imported.routines.isEmpty()) error("The selected backup doesn't contain any routines.")
-        mergeImportedState(imported, currentRoutines, currentCustomExercises)
-    }
+    /** Parses a backup payload without touching the current state. */
+    fun parseBackup(json: String): PersistedDomainState? = parseAppState(json)
 
     /** Writes only the versioned state; legacy keys are removed after migration. Safe to call off the main thread. */
     fun persistState(routines: List<Routine>, customExercises: List<CustomExercise>) {
@@ -148,7 +140,7 @@ internal class RoutinePersistence(
             ?.toDomainState()
     }.getOrNull()
 
-    private fun mergeImportedState(
+    fun mergeImportedState(
         imported: PersistedDomainState,
         currentRoutines: List<Routine>,
         currentCustoms: List<CustomExercise>

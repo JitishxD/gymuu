@@ -16,6 +16,8 @@
             android:supportsRtl="true"
             android:theme="@style/Theme.Gymuu">
 
+        <!-- Manifest-declared so the rest-done alarm still wakes the app after the
+             process was killed (e.g. swiped away from recents). -->
         <receiver
                 android:name=".ui.exercise.RestTimerCompleteReceiver"
                 android:exported="false" />

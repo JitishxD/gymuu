@@ -27,6 +27,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -37,6 +38,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import me.jitish.gymuu.R
 import me.jitish.gymuu.data.routine.Routine
 import me.jitish.gymuu.ui.AppUiState
@@ -94,32 +98,45 @@ internal fun RoutineListScreen(state: AppUiState, viewModel: AppViewModel, navCo
     val context = LocalContext.current
     var routineDialogState by remember { mutableStateOf<RoutineDialogState?>(null) }
     var routineToDelete by remember { mutableStateOf<Routine?>(null) }
-    val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
+    val backupScope = rememberCoroutineScope()
+
+    val exportLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument(BACKUP_MIME_TYPE)
+    ) { uri ->
         if (uri == null) return@rememberLauncherForActivityResult
 
-        runCatching {
-            context.contentResolver.openOutputStream(uri, "wt")?.bufferedWriter()?.use { writer ->
-                writer.write(viewModel.exportRoutineBackup())
-            } ?: error("Couldn't open the selected file.")
-        }.onSuccess {
-            Toast.makeText(context, "Routines exported.", Toast.LENGTH_SHORT).show()
-        }.onFailure { error ->
-            Toast.makeText(context, error.message ?: "Export failed.", Toast.LENGTH_LONG).show()
+        // The archive carries media, so the write runs off the main thread.
+        backupScope.launch {
+            val result = withContext(Dispatchers.IO) {
+                runCatching {
+                    val output = context.contentResolver.openOutputStream(uri, "wt")
+                        ?: error("Couldn't open the selected file.")
+                    output.use { stream -> viewModel.exportRoutineBackup(stream).getOrThrow() }
+                }
+            }
+            Toast.makeText(
+                context,
+                result.fold({ "Routines exported." }, { it.message ?: "Export failed." }),
+                Toast.LENGTH_LONG
+            ).show()
         }
     }
     val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri == null) return@rememberLauncherForActivityResult
 
-        runCatching {
-            context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { reader ->
-                reader.readText()
-            } ?: error("Couldn't read the selected file.")
-        }.mapCatching { json ->
-            viewModel.importRoutineBackup(json).getOrThrow()
-        }.onSuccess { message ->
-            Toast.makeText(context, message, Toast.LENGTH_LONG).show()
-        }.onFailure { error ->
-            Toast.makeText(context, error.message ?: "Import failed.", Toast.LENGTH_LONG).show()
+        backupScope.launch {
+            val result = withContext(Dispatchers.IO) {
+                runCatching {
+                    val input = context.contentResolver.openInputStream(uri)
+                        ?: error("Couldn't read the selected file.")
+                    input.use { stream -> viewModel.importRoutineBackup(stream).getOrThrow() }
+                }
+            }
+            Toast.makeText(
+                context,
+                result.getOrElse { it.message ?: "Import failed." },
+                Toast.LENGTH_LONG
+            ).show()
         }
     }
 
@@ -176,7 +193,7 @@ internal fun RoutineListScreen(state: AppUiState, viewModel: AppViewModel, navCo
                         Text("EXPORT", fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp)
                     }
                     Button(
-                        onClick = { importLauncher.launch(arrayOf("application/json", "text/plain")) },
+                        onClick = { importLauncher.launch(BACKUP_IMPORT_MIME_TYPES) },
                         colors = ButtonDefaults.buttonColors(
                             containerColor = Color(0xFF1D1D1D),
                             contentColor = Color.White
@@ -190,7 +207,7 @@ internal fun RoutineListScreen(state: AppUiState, viewModel: AppViewModel, navCo
             }
             item {
                 Text(
-                    text = "Export saves all routines and custom exercises as a JSON backup file.",
+                    text = "Export saves all routines, custom exercises and their media as a .gymuu backup file.",
                     color = GymuuMuted,
                     fontSize = 16.sp
                 )
@@ -238,7 +255,12 @@ internal fun RoutineListScreen(state: AppUiState, viewModel: AppViewModel, navCo
     }
 }
 
+private const val BACKUP_MIME_TYPE = "application/zip"
+
+private val BACKUP_IMPORT_MIME_TYPES =
+    arrayOf("application/zip", "application/x-zip-compressed", "application/octet-stream")
+
 private fun defaultRoutineBackupFileName(): String {
-    return "gymuu-routines-${LocalDate.now()}.json"
+    return "gymuu-backup-${LocalDate.now()}.gymuu"
 }
 

@@ -10,6 +10,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import me.jitish.gymuu.data.exercise.Exercise
+import me.jitish.gymuu.data.media.ExerciseMediaStore
+import java.io.InputStream
+import java.io.OutputStream
 import java.util.UUID
 
 /**
@@ -19,6 +22,8 @@ import java.util.UUID
 class RoutineRepository(context: Context, private val scope: CoroutineScope) {
     private val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
     private val persistence = RoutinePersistence(prefs, Gson(), ::newId)
+    private val mediaStore = ExerciseMediaStore(context)
+    private val backupArchive = RoutineBackupArchive(mediaStore)
     private val initialState = persistence.loadState()
 
     private val _routines = MutableStateFlow(initialState.routines)
@@ -288,19 +293,62 @@ class RoutineRepository(context: Context, private val scope: CoroutineScope) {
         }
     }
 
-    fun exportBackup(): String = persistence.exportBackup(_routines.value, _customExercises.value)
+    /** Writes a .gymuu archive: the state payload plus every custom-exercise media file. */
+    fun exportBackupTo(output: OutputStream): Result<Unit> = runCatching {
+        val customs = _customExercises.value
+        val media = customs.mapNotNull { exercise ->
+            exercise.mediaUrl?.takeIf { it.isNotBlank() }?.let { url ->
+                RoutineBackupArchive.MediaFile(url, exercise.mediaMimeType) { mediaStore.open(url) }
+            }
+        }.distinctBy { it.reference }
+        backupArchive.write(output, persistence.exportBackup(_routines.value, customs), media)
+    }
 
-    fun importBackup(json: String): Result<String> =
-        persistence.importBackup(json, _routines.value, _customExercises.value).map { merged ->
-            _routines.value = merged.routines
-            _customExercises.value = merged.customExercises
-            flush()
-            val routines =
-                if (merged.routinesAdded == 1) "1 routine" else "${merged.routinesAdded} routines"
-            val customs =
-                if (merged.customExercisesAdded == 1) "1 new custom exercise" else "${merged.customExercisesAdded} new custom exercises"
-            "Imported $routines and $customs. Your existing routines were kept."
+    /**
+     * Reads a .gymuu archive, merges it, and points every imported
+     * custom exercise at the copy of its media that now lives on this device.
+     */
+    fun importBackupFrom(input: InputStream): Result<String> = runCatching {
+        val contents = backupArchive.read(input)
+            ?: error("This file doesn't contain a valid Gymuu backup.")
+        val imported = persistence.parseBackup(contents.stateJson)
+            ?: error("This file doesn't contain a valid Gymuu backup.")
+        if (imported.routines.isEmpty()) error("The selected backup doesn't contain any routines.")
+
+        val merged = persistence.mergeImportedState(imported, _routines.value, _customExercises.value)
+        val customs = merged.customExercises.map { exercise ->
+            contents.mediaUrls[exercise.mediaUrl]?.let { exercise.copy(mediaUrl = it) } ?: exercise
         }
+        _routines.value = merged.routines.relinkCustomMedia(customs)
+        _customExercises.value = customs
+        flush()
+
+        val routines =
+            if (merged.routinesAdded == 1) "1 routine" else "${merged.routinesAdded} routines"
+        val importedCustoms =
+            if (merged.customExercisesAdded == 1) "1 new custom exercise" else "${merged.customExercisesAdded} new custom exercises"
+        "Imported $routines and $importedCustoms. Your existing routines were kept."
+    }
+
+    /** Imported media moved into app storage, so routine rows must point at the copies too. */
+    private fun List<Routine>.relinkCustomMedia(customs: List<CustomExercise>): List<Routine> {
+        val byId = customs.associateBy { it.id }
+        return map { routine ->
+            routine.copy(days = routine.days.map { day ->
+                day.copy(exercises = day.exercises.map { exercise ->
+                    val custom = exercise.exerciseId?.let(byId::get)
+                    if (exercise.source == ExerciseSource.CUSTOM && custom != null &&
+                        (custom.mediaUrl != exercise.gifUrl ||
+                                custom.mediaMimeType != exercise.mediaMimeType)
+                    ) {
+                        exercise.copy(gifUrl = custom.mediaUrl, mediaMimeType = custom.mediaMimeType)
+                    } else {
+                        exercise
+                    }
+                })
+            })
+        }
+    }
 
     private fun addExerciseToDay(routineId: String, dayId: String, exercise: RoutineExercise) =
         updateDay(routineId, dayId) { it.copy(exercises = it.exercises + exercise) }

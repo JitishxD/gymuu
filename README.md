@@ -86,7 +86,7 @@ Category filters are applied to the bundled exercise JSON like this:
 ### Data and Backup
 - **Offline-first workout data** - routines and custom exercises are stored locally with SharedPreferences.
 - **Bundled exercise metadata** - the core exercise library ships with the app; only remote GIF previews need network access.
-- **Versioned backups** - export all routines and custom exercises as JSON.
+- **Versioned backups** - export all routines, custom exercises and their media as a single `.gymuu` archive.
 - **Merge imports** - imported routines are added alongside existing routines, while duplicate custom exercises are deduplicated by content signature.
 
 <p align="center">
@@ -104,7 +104,7 @@ Category filters are applied to the bundled exercise JSON like this:
 | **Bundled exercise JSON** | The exercise library is available without a live API and is cached in memory after startup parsing. |
 | **Coil for GIF previews** | Provides animated GIF rendering and a shared 256 MB disk cache for remote exercise demos. |
 | **0.9x density scaling** | `APP_SCALE` in `MainActivity` slightly shrinks the UI so workout controls fit more comfortably on screen. |
-| **JSON import/export** | Backups remain readable, portable, and easy to merge across devices. |
+| **Portable backups** | A `.gymuu` archive carries the routine state and the picked media, so an import keeps working on another device. |
 
 ---
 
@@ -151,7 +151,7 @@ Configure signing in Android Studio or in `app/build.gradle.kts` before producin
 | Screen | Description |
 |---|---|
 | **Routine Launch** | Loading screen that opens the first available routine day. |
-| **Routine List** | Manage routines, create new routines, and export/import JSON backups. |
+| **Routine List** | Manage routines, create new routines, and export/import `.gymuu` backups. |
 | **Workout Day** | Main workout view with day paging, routine drawer navigation, exercise cards, set tracking, rest timer, notes, and bulk actions. |
 | **Select Exercise** | Browse, search, filter, add, swap, and manage custom exercises. |
 

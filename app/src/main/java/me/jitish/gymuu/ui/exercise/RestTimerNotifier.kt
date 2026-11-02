@@ -63,7 +63,11 @@ internal class RestTimerNotifier(context: Context) {
             .setShowWhen(false)
             .setTimeoutAfter(remainingMs)
             .build()
-        notificationManager.notify(runningId(timer.routineExerciseId), notification)
+        notificationManager.notify(
+            runningTag(timer.routineExerciseId),
+            REST_NOTIFICATION_ID,
+            notification
+        )
     }
 
     fun showTimerComplete(timer: RestTimerState, requiresAcknowledgement: Boolean): Boolean {
@@ -105,12 +109,15 @@ internal class RestTimerNotifier(context: Context) {
                 dismiss
             )
         }
-        notificationManager.notify(completeId(id), builder.build())
+        notificationManager.notify(completeTag(id), REST_NOTIFICATION_ID, builder.build())
         return true
     }
 
-    fun cancelRunningTimer(id: String) = notificationManager.cancel(runningId(id))
-    fun cancelTimerComplete(id: String) = notificationManager.cancel(completeId(id))
+    fun cancelRunningTimer(id: String) =
+        notificationManager.cancel(runningTag(id), REST_NOTIFICATION_ID)
+
+    fun cancelTimerComplete(id: String) =
+        notificationManager.cancel(completeTag(id), REST_NOTIFICATION_ID)
     fun cancelTimerNotifications(id: String) {
         cancelRunningTimer(id); cancelTimerComplete(id)
     }
@@ -126,27 +133,23 @@ internal class RestTimerNotifier(context: Context) {
         val pi = receiverIntent(ACTION_TIMER_COMPLETE, timer.routineExerciseId, ALARM_BASE)
         val exact =
             Build.VERSION.SDK_INT < Build.VERSION_CODES.S || alarmManager.canScheduleExactAlarms()
-        try {
-            if (exact) {
+        if (exact) {
+            try {
                 alarmManager.setExactAndAllowWhileIdle(
                     AlarmManager.ELAPSED_REALTIME_WAKEUP,
                     timer.endElapsedRealtimeMillis,
                     pi
                 )
-            } else {
-                alarmManager.setAndAllowWhileIdle(
-                    AlarmManager.ELAPSED_REALTIME_WAKEUP,
-                    timer.endElapsedRealtimeMillis,
-                    pi
-                )
+                return
+            } catch (_: SecurityException) {
+                // Permission revoked between the check and the call; fall back to inexact.
             }
-        } catch (_: SecurityException) {
-            alarmManager.setAndAllowWhileIdle(
-                AlarmManager.ELAPSED_REALTIME_WAKEUP,
-                timer.endElapsedRealtimeMillis,
-                pi
-            )
         }
+        alarmManager.setAndAllowWhileIdle(
+            AlarmManager.ELAPSED_REALTIME_WAKEUP,
+            timer.endElapsedRealtimeMillis,
+            pi
+        )
     }
 
     /** Cancels the alarm and forgets the timer. */
@@ -220,9 +223,12 @@ internal class RestTimerNotifier(context: Context) {
                 ) == PackageManager.PERMISSION_GRANTED
     }
 
+    // The exercise id is the notification tag, so two timers can never overwrite each
+    // other's notification through a hash collision.
+    private fun runningTag(id: String) = "rest_running:$id"
+    private fun completeTag(id: String) = "rest_complete:$id"
+
     private fun offset(id: String) = (id.hashCode() and Int.MAX_VALUE) % RANGE
-    private fun runningId(id: String) = RUNNING_BASE + offset(id)
-    private fun completeId(id: String) = COMPLETE_BASE + offset(id)
     private fun requestCode(base: Int, id: String) = base + offset(id)
 
     companion object {
@@ -236,9 +242,8 @@ internal class RestTimerNotifier(context: Context) {
         private val LEGACY_CHANNEL_IDS =
             listOf("rest_timer_running_lockscreen", "rest_timer_complete_app_controlled")
         private const val OPEN_APP_REQUEST_CODE = 2101
+        private const val REST_NOTIFICATION_ID = 1
         private const val RANGE = 100_000
-        private const val RUNNING_BASE = 7_000
-        private const val COMPLETE_BASE = 107_000
         private const val ALARM_BASE = 207_000
         private const val DISMISS_BASE = 307_000
         private const val OPEN_BASE = 407_000

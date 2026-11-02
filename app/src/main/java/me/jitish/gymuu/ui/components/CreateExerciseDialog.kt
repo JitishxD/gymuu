@@ -84,16 +84,33 @@ internal fun CreateExerciseDialog(initial: CustomExercise?, onDismiss: () -> Uni
         ?: inferExerciseMediaMimeType(initialMediaUrl, null)
         ?: ""
     val initialMediaIsLink = initialMediaUrl.isWebMediaLink()
-    var mediaMode by rememberSaveable(initial?.id) {
+    // Media state is keyed on the stored media as well as the id: launcher image result
+    // restores this dialog after a process stop, and keying on the id alone would bring
+    // back the media the exercise had before it was last saved.
+    var mediaMode by rememberSaveable(initial?.id, initial?.mediaUrl, initial?.mediaMimeType) {
         mutableStateOf(if (initialMediaIsLink) MEDIA_MODE_LINK else MEDIA_MODE_UPLOAD)
     }
-    var uploadedMediaUrl by rememberSaveable(initial?.id) { mutableStateOf(if (initialMediaIsLink) "" else initialMediaUrl) }
-    var uploadedMediaMimeType by rememberSaveable(initial?.id) { mutableStateOf(if (initialMediaIsLink) "" else initialMediaMimeType) }
-    var linkMediaUrl by rememberSaveable(initial?.id) { mutableStateOf(if (initialMediaIsLink) initialMediaUrl else "") }
-    var linkMediaMimeType by rememberSaveable(initial?.id) { mutableStateOf(if (initialMediaIsLink) initialMediaMimeType else "") }
-    var mediaRemoved by rememberSaveable(initial?.id) { mutableStateOf(false) }
-    var mediaErrorMessage by rememberSaveable(initial?.id) { mutableStateOf<String?>(null) }
-    var validatingMedia by rememberSaveable(initial?.id) { mutableStateOf(false) }
+    var uploadedMediaUrl by rememberSaveable(initial?.id, initial?.mediaUrl, initial?.mediaMimeType) {
+        mutableStateOf(if (initialMediaIsLink) "" else initialMediaUrl)
+    }
+    var uploadedMediaMimeType by rememberSaveable(initial?.id, initial?.mediaUrl, initial?.mediaMimeType) {
+        mutableStateOf(if (initialMediaIsLink) "" else initialMediaMimeType)
+    }
+    var linkMediaUrl by rememberSaveable(initial?.id, initial?.mediaUrl, initial?.mediaMimeType) {
+        mutableStateOf(if (initialMediaIsLink) initialMediaUrl else "")
+    }
+    var linkMediaMimeType by rememberSaveable(initial?.id, initial?.mediaUrl, initial?.mediaMimeType) {
+        mutableStateOf(if (initialMediaIsLink) initialMediaMimeType else "")
+    }
+    var mediaRemoved by rememberSaveable(initial?.id, initial?.mediaUrl, initial?.mediaMimeType) {
+        mutableStateOf(false)
+    }
+    var mediaErrorMessage by rememberSaveable(initial?.id, initial?.mediaUrl, initial?.mediaMimeType) {
+        mutableStateOf<String?>(null)
+    }
+    var validatingMedia by rememberSaveable(initial?.id, initial?.mediaUrl, initial?.mediaMimeType) {
+        mutableStateOf(false)
+    }
     var mediaValidationToken by remember { mutableIntStateOf(0) }
     var expanded by remember { mutableStateOf(false) }
     val mediaValidationScope = rememberCoroutineScope()
@@ -101,16 +118,26 @@ internal fun CreateExerciseDialog(initial: CustomExercise?, onDismiss: () -> Uni
         uri ?: return@rememberLauncherForActivityResult
         val detectedMimeType = context.contentResolver.getType(uri)
         val candidateMimeType = inferExerciseMediaMimeType(uri.toString(), detectedMimeType)
-        pickedMediaTypeError(candidateMimeType)?.let { message ->
-            mediaErrorMessage = message
-            validatingMedia = false
-            return@rememberLauncherForActivityResult
+
+        // Apply the pick synchronously. Validating asynchronously used to be the only path
+        // that stored the URL, so a pick could be lost (coroutine cancelled or superseded)
+        // and CONFIRM then silently saved the previous media.
+        runCatching {
+            context.contentResolver.takePersistableUriPermission(
+                uri,
+                Intent.FLAG_GRANT_READ_URI_PERMISSION
+            )
         }
+        mediaMode = MEDIA_MODE_UPLOAD
+        mediaRemoved = false
+        uploadedMediaUrl = uri.toString()
+        uploadedMediaMimeType = candidateMimeType.orEmpty()
+        mediaErrorMessage = pickedMediaTypeError(candidateMimeType)
+        validatingMedia = mediaErrorMessage == null && candidateMimeType.isVideoMimeType()
 
         mediaValidationToken += 1
         val validationToken = mediaValidationToken
-        mediaErrorMessage = null
-        validatingMedia = candidateMimeType.isVideoMimeType()
+        if (!validatingMedia) return@rememberLauncherForActivityResult
         mediaValidationScope.launch {
             val validationError = withContext(Dispatchers.IO) {
                 pickedMediaError(context, uri, candidateMimeType)
@@ -119,19 +146,8 @@ internal fun CreateExerciseDialog(initial: CustomExercise?, onDismiss: () -> Uni
                 return@launch
             }
             validatingMedia = false
-            if (validationError != null) {
-                mediaErrorMessage = validationError
-                return@launch
-            }
-
-            runCatching {
-                context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            }
-            mediaMode = MEDIA_MODE_UPLOAD
-            mediaRemoved = false
-            mediaErrorMessage = null
-            uploadedMediaUrl = uri.toString()
-            uploadedMediaMimeType = candidateMimeType.orEmpty()
+            // The pick stays selected; an unreadable video only blocks CONFIRM.
+            mediaErrorMessage = validationError
         }
     }
     val activeMediaUrl = if (mediaMode == MEDIA_MODE_LINK) linkMediaUrl else uploadedMediaUrl

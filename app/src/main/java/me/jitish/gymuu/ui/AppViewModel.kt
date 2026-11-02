@@ -37,10 +37,13 @@ import me.jitish.gymuu.data.settings.VibrationRepeatOptions
 import me.jitish.gymuu.ui.exercise.RestTimerAlarmStore
 import me.jitish.gymuu.ui.exercise.RestTimerCompletion
 import me.jitish.gymuu.ui.exercise.RestTimerNotifier
+import me.jitish.gymuu.ui.exercise.RestTimerRecovery
 import me.jitish.gymuu.ui.exercise.formatRestCountdown
 import me.jitish.gymuu.ui.exercise.isAppInForeground
 import me.jitish.gymuu.ui.exercise.parseRestTimeToSeconds
 import me.jitish.gymuu.ui.exercise.triggerRestCompleteVibration
+import java.io.InputStream
+import java.io.OutputStream
 
 class AppViewModel(application: Application) : AndroidViewModel(application) {
     private val app get() = getApplication<Application>()
@@ -113,6 +116,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                     notifier.cancelRunningTimer(it.routineExerciseId)
                     notifier.scheduleTimerComplete(it) // upgrades to exact if permission was just granted
                 }
+                ensureTicker() // the ticker may have stopped while the process was asleep
             }
 
             Lifecycle.Event.ON_STOP -> {
@@ -199,18 +203,12 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun restoreScheduledRestTimers() {
-        RestTimerAlarmStore.loadAll(app).forEach { stored ->
-            val remainingMs = stored.endWallClockMillis - System.currentTimeMillis()
-            if (remainingMs <= 0) {
-                notifier.cancelScheduledTimer(stored.routineExerciseId) // stale (e.g. after reboot)
-                return@forEach
-            }
-            val restored = stored.copy(
-                remainingSeconds = ((remainingMs + 999) / 1_000).toInt(),
-                endElapsedRealtimeMillis = SystemClock.elapsedRealtime() + remainingMs
-            )
-            restTimers.update { it + (restored.routineExerciseId to restored) }
-            notifier.scheduleTimerComplete(restored)
+        // Re-arms alarms, delivers completions missed while the process was dead, and
+        // drops stale ones. This is the only place that adopts persisted timers.
+        val restored = RestTimerRecovery.reconcile(app)
+        if (restored.isEmpty()) return
+        restTimers.update { current ->
+            current + restored.associateBy { it.routineExerciseId }
         }
         ensureTicker()
     }
@@ -366,9 +364,11 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun deleteCustomExercise(exerciseId: String) =
         routineRepository.deleteCustomExercise(exerciseId)
 
-    fun exportRoutineBackup(): String = routineRepository.exportBackup()
-    fun importRoutineBackup(json: String): Result<String> =
-        routineRepository.importBackup(json).onSuccess {
+    fun exportRoutineBackup(output: OutputStream): Result<Unit> =
+        routineRepository.exportBackupTo(output)
+
+    fun importRoutineBackup(input: InputStream): Result<String> =
+        routineRepository.importBackupFrom(input).onSuccess {
             routineRepository.refreshBuiltInGifUrls(exerciseRepository.exercises.value)
         }
 
@@ -480,8 +480,9 @@ private fun buildPicker(
     category: ExerciseCategory
 ): PickerState {
     val q = query.trim().lowercase()
+    // Custom exercises live only in their own tab; ALL lists the built-in library.
     val customMatches =
-        if (category == ExerciseCategory.ALL || category == ExerciseCategory.CUSTOM) {
+        if (category == ExerciseCategory.CUSTOM) {
             customs.filter { q.isEmpty() || it.name.lowercase().contains(q) }
         } else emptyList()
     if (category == ExerciseCategory.CUSTOM) return PickerState(customMatches, emptyList())
